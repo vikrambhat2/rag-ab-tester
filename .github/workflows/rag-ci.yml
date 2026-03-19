@@ -1,0 +1,66 @@
+name: RAG Quality Gate
+
+on:
+  pull_request:
+    paths:
+      # Trigger only when RAG-relevant files change
+      - 'experiments/**'
+      - 'src/pipeline/**'
+      - 'src/config.py'
+      - 'data/docs/**'
+      - 'ingest.py'
+
+jobs:
+  rag-experiment:
+    name: RAG A/B Test
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write   # needed to post PR comments
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Run all four experiments in parallel
+        experiment:
+          - experiments/chunking.py
+          - experiments/embedding.py
+          - experiments/retrieval.py
+          - experiments/prompt.py
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run RAG experiment
+        id: rag
+        env:
+          WATSONX_API_KEY:    ${{ secrets.WATSONX_API_KEY }}
+          WATSONX_PROJECT_ID: ${{ secrets.WATSONX_PROJECT_ID }}
+          WATSONX_URL:        ${{ secrets.WATSONX_URL }}
+        run: |
+          python scripts/ci_run.py \
+            --experiment "${{ matrix.experiment }}" \
+            --test-set data/test_set.json \
+            --fail-on-regression true \
+            --github-token "${{ secrets.GITHUB_TOKEN }}" \
+            --repo "${{ github.repository }}" \
+            --pr-number "${{ github.event.pull_request.number }}"
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### RAG Results — ${{ matrix.experiment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Winner:** ${{ steps.rag.outputs.overall-winner }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Regression:** ${{ steps.rag.outputs.regression-detected }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Improved:** ${{ steps.rag.outputs.improved-metrics || 'none' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Regressed:** ${{ steps.rag.outputs.regressed-metrics || 'none' }}" >> $GITHUB_STEP_SUMMARY

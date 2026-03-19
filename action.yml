@@ -1,0 +1,78 @@
+name: 'RAG A/B Tester'
+description: >
+  Run RAG pipeline experiments on every PR, detect quality regressions,
+  and post a statistical results table as a PR comment.
+
+branding:
+  icon: 'bar-chart-2'
+  color: 'blue'
+
+inputs:
+  experiment:
+    description: 'Path to the experiment .py file to run (e.g. experiments/chunking.py)'
+    required: true
+
+  test-set:
+    description: 'Path to the QA test set JSON file'
+    required: false
+    default: 'data/test_set.json'
+
+  fail-on-regression:
+    description: >
+      Exit with code 1 (blocking the merge) when a metric regresses
+      with statistical significance (p < 0.05) and practical effect (|d| >= 0.2).
+    required: false
+    default: 'true'
+
+  github-token:
+    description: >
+      GitHub token used to post/update the PR comment.
+      Pass secrets.GITHUB_TOKEN — the action never stores this value.
+    required: false
+    default: ''
+
+outputs:
+  overall-winner:
+    description: 'Name of the overall winning variant, or "no clear winner"'
+
+  regression-detected:
+    description: '"true" if a regression was detected, "false" otherwise'
+
+  improved-metrics:
+    description: 'Comma-separated list of metrics that improved significantly'
+
+  regressed-metrics:
+    description: 'Comma-separated list of metrics that regressed significantly'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install dependencies
+      shell: bash
+      run: pip install -r ${{ github.action_path }}/requirements.txt
+
+    - name: Run RAG experiment
+      shell: bash
+      env:
+        # WatsonX AI (or other LLM provider) credentials
+        WATSONX_API_KEY:        ${{ env.WATSONX_API_KEY }}
+        WATSONX_PROJECT_ID:     ${{ env.WATSONX_PROJECT_ID }}
+        WATSONX_URL:            ${{ env.WATSONX_URL }}
+        # GitHub context
+        GITHUB_TOKEN:           ${{ inputs.github-token }}
+        GITHUB_REPOSITORY:      ${{ github.repository }}
+        PR_NUMBER:              ${{ github.event.pull_request.number }}
+      run: |
+        python ${{ github.action_path }}/scripts/ci_run.py \
+          --experiment "${{ inputs.experiment }}" \
+          --test-set "${{ inputs.test-set }}" \
+          --fail-on-regression "${{ inputs.fail-on-regression }}" \
+          --github-token "${{ inputs.github-token }}" \
+          --repo "${{ github.repository }}" \
+          --pr-number "${{ github.event.pull_request.number }}"
