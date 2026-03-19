@@ -1,11 +1,11 @@
 from __future__ import annotations
 import re
-from langchain_ollama import ChatOllama
+from src.config import get_llm
 
 
-class OllamaJudge:
+class WatsonxJudge:
     """
-    LLM-as-judge using a local Ollama model.
+    LLM-as-judge using WatsonX AI (ChatWatsonx via src.config.get_llm).
 
     All scoring prompts are structured so the model must respond
     with a single float in [0, 1] on the final line.  If parsing
@@ -13,8 +13,8 @@ class OllamaJudge:
     (uncertain) rather than crashing the whole experiment run.
     """
 
-    def __init__(self, model: str = "llama3.2", temperature: float = 0):
-        self.llm = ChatOllama(model=model, temperature=temperature)
+    def __init__(self):
+        self.llm = get_llm(temperature=0)
 
     # ------------------------------------------------------------------ #
     #  Internal helpers                                                    #
@@ -124,3 +124,7 @@ Does the retrieved context contain enough information to derive the ground truth
 
 Respond with only a single decimal number between 0 and 1."""
         return self.score(prompt)
+
+
+# Backwards-compatible alias
+OllamaJudge = WatsonxJudge

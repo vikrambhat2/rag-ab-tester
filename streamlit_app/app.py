@@ -32,29 +32,19 @@ st.set_page_config(
 st.title("🔬 RAG A/B Testing Framework")
 st.markdown(
     "Plug in any two RAG pipeline variants, get statistical proof. "
-    "Fully local — powered by **Ollama**. No API keys required."
+    "Powered by **WatsonX AI** (LLM + embeddings) and **ChromaDB** (vector store)."
 )
 st.divider()
 
 # ── Status cards ─────────────────────────────────────────────────────────── #
-col_ollama, col_testset, col_results, col_experiments = st.columns(4)
+from src.config import check_watsonx  # noqa: E402
 
-# Ollama status
-import urllib.request, urllib.error
-def check_ollama() -> bool:
-    try:
-        urllib.request.urlopen("http://localhost:11434", timeout=2)
-        return True
-    except Exception:
-        return False
+col_wx, col_testset, col_results, col_experiments = st.columns(4)
 
-ollama_ok = check_ollama()
-with col_ollama:
-    status_icon = "🟢" if ollama_ok else "🔴"
-    status_text = "Running" if ollama_ok else "Not reachable"
-    st.metric("Ollama", status_text, delta=None)
-    if not ollama_ok:
-        st.caption("Start with: `ollama serve`")
+wx_ok, wx_msg = check_watsonx()
+with col_wx:
+    st.metric("WatsonX AI", "Ready" if wx_ok else "Not configured")
+    st.caption(wx_msg if wx_ok else "Set WATSONX_APIKEY + WATSONX_PROJECT_ID in .env")
 
 # Test set
 test_cases = load_test_set()

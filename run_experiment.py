@@ -11,12 +11,13 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
 
 from rich.console import Console
 
-from src.evaluator.judge import OllamaJudge
+from src.evaluator.judge import WatsonxJudge
 from src.evaluator.metrics import (
     faithfulness_score,
     answer_relevance_score,
@@ -26,6 +27,7 @@ from src.evaluator.metrics import (
 from src.evaluator.stats import compare_metric
 from src.models.schemas import ExperimentResult, QueryScore, VariantResult
 from src.report.report import print_experiment, save_experiment_json
+from src.best_config import save as save_best, summary as best_summary, EXPERIMENT_KEYS
 
 console = Console()
 
@@ -56,7 +58,7 @@ def load_experiment(path: str):
 def score_variant(
     pipeline,
     test_cases: list[dict],
-    judge: OllamaJudge,
+    judge: WatsonxJudge,
     name: str,
 ) -> VariantResult:
     """Run all test cases through a pipeline variant and score each one."""
@@ -121,16 +123,22 @@ def run(experiment_path: str, test_set_path: str, save_json: bool) -> Experiment
         f"[bold cyan]{'=' * 60}[/bold cyan]"
     )
 
-    judge = OllamaJudge()
+    judge = WatsonxJudge()
 
-    # Instantiate pipelines with isolated Chroma collections
+    def _safe_name(prefix: str, name: str) -> str:
+        """Build a ChromaDB-safe collection name (3-512 chars, alphanumeric + _ + -)."""
+        slug = re.sub(r"[^a-zA-Z0-9_-]", "_", name)
+        slug = re.sub(r"_+", "_", slug).strip("_").lower()
+        return f"{prefix}_{slug}"[:512]
+
+    # Instantiate pipelines with isolated ChromaDB collections
     control = exp.CONTROL(
-        collection_name=f"ctrl_{exp.CONTROL_NAME.replace(' ', '_')}",
-        persist_dir=f"./.chroma/ctrl_{exp.CONTROL_NAME.replace(' ', '_')}",
+        collection_name=_safe_name("ctrl", exp.CONTROL_NAME),
+        persist_dir=".chroma",
     )
     challenger = exp.CHALLENGER(
-        collection_name=f"chal_{exp.CHALLENGER_NAME.replace(' ', '_')}",
-        persist_dir=f"./.chroma/chal_{exp.CHALLENGER_NAME.replace(' ', '_')}",
+        collection_name=_safe_name("chal", exp.CHALLENGER_NAME),
+        persist_dir=".chroma",
     )
 
     console.print(f"\n[bold]Ingesting: {exp.CONTROL_NAME}[/bold]")
@@ -179,6 +187,26 @@ def run(experiment_path: str, test_set_path: str, save_json: bool) -> Experiment
 
     if save_json:
         save_experiment_json(result)
+
+    # ── Auto-save champion config ────────────────────────────────────────── #
+    # If the experiment module declares a CHAMPION_CONFIG dict, persist the
+    # winner's hyperparameters to results/best_config.json so downstream
+    # experiments automatically build on the proven winner.
+    champion_config = getattr(exp, "CHAMPION_CONFIG", None)
+    if champion_config and overall != "no clear winner":
+        updates = champion_config.get(overall)
+        if updates:
+            save_best(updates)
+            console.print(
+                f"\n[bold green]✓ Champion config updated:[/bold green] "
+                f"{best_summary()}"
+            )
+    elif champion_config and overall == "no clear winner":
+        # No clear winner — keep existing best config unchanged
+        console.print(
+            f"\n[dim]Champion config unchanged (no clear winner): "
+            f"{best_summary()}[/dim]"
+        )
 
     return result
 
