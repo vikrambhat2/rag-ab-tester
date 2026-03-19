@@ -16,11 +16,12 @@ import json
 import random
 from pathlib import Path
 
-from langchain_community.document_loaders import DirectoryLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_ollama import ChatOllama
+from langchain_community.document_loaders import DirectoryLoader, TextLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from rich.console import Console
 from rich.progress import track
+
+from src.config import get_llm
 
 console = Console()
 
@@ -38,7 +39,7 @@ QUESTION: <your question here>
 ANSWER: <your answer here>"""
 
 
-def generate_qa_pair(chunk: str, llm: ChatOllama) -> dict | None:
+def generate_qa_pair(chunk: str, llm) -> dict | None:
     prompt = _QA_PROMPT.format(context=chunk)
     try:
         response = llm.invoke(prompt)
@@ -54,7 +55,7 @@ def generate_qa_pair(chunk: str, llm: ChatOllama) -> dict | None:
 
 def main(docs_path: str, num_questions: int, output: str) -> None:
     console.print(f"[bold]Loading documents from:[/bold] {docs_path}")
-    loader = DirectoryLoader(docs_path, glob="**/*.md")
+    loader = DirectoryLoader(docs_path, glob="**/*.md", loader_cls=TextLoader)
     documents = loader.load()
 
     if not documents:
@@ -67,7 +68,7 @@ def main(docs_path: str, num_questions: int, output: str) -> None:
     chunks = splitter.split_documents(documents)
     console.print(f"Split into {len(chunks)} chunks from {len(documents)} documents.")
 
-    llm = ChatOllama(model="llama3.2", temperature=0.3)
+    llm = get_llm()
 
     # Sample without replacement (or use all if fewer chunks than requested)
     sample_size = min(num_questions, len(chunks))

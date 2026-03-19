@@ -1,12 +1,17 @@
 """
 Experiment 3 — Embedding Model
-Hypothesis: mxbai-embed-large produces richer semantic representations than
-            nomic-embed-text, improving retrieval quality.
+Hypothesis: intfloat/multilingual-e5-large produces richer semantic
+            representations than ibm/slate-125m-english-rtrvr-v2,
+            improving retrieval quality.
 
-Prereq: ollama pull mxbai-embed-large
+Chunk size is read from results/best_config.json (set by chunking.py).
+Falls back to (512, 50) if the chunking experiment has not been run yet.
+
+Both models are served via WatsonX AI.
 """
-from langchain_ollama import OllamaEmbeddings
 from src.pipeline.base import RAGPipeline
+from src.config import get_embeddings
+from src.best_config import get as best
 
 _PROMPT = (
     "Answer using only the context below.\n"
@@ -16,27 +21,27 @@ _PROMPT = (
 )
 
 
-class NomicEmbedPipeline(RAGPipeline):
-    """nomic-embed-text — fast, lightweight 768-dim embeddings."""
+class Slate125mPipeline(RAGPipeline):
+    """ibm/slate-125m-english-rtrvr-v2 — control baseline."""
 
     def get_chunk_size(self):
-        return (512, 50)
+        return (best("chunk_size"), best("chunk_overlap"))
 
     def get_embeddings(self):
-        return OllamaEmbeddings(model="nomic-embed-text")
+        return get_embeddings("ibm/slate-125m-english-rtrvr-v2")
 
     def get_prompt(self, query, context):
         return _PROMPT.format(context=context, query=query)
 
 
-class MxbaiEmbedPipeline(RAGPipeline):
-    """mxbai-embed-large — higher-capacity 1024-dim embeddings."""
+class E5LargePipeline(RAGPipeline):
+    """intfloat/multilingual-e5-large — multilingual, higher-capacity challenger."""
 
     def get_chunk_size(self):
-        return (512, 50)
+        return (best("chunk_size"), best("chunk_overlap"))
 
     def get_embeddings(self):
-        return OllamaEmbeddings(model="mxbai-embed-large")
+        return get_embeddings("intfloat/multilingual-e5-large")
 
     def get_prompt(self, query, context):
         return _PROMPT.format(context=context, query=query)
@@ -44,7 +49,12 @@ class MxbaiEmbedPipeline(RAGPipeline):
 
 # ── Experiment registration ─────────────────────────────────────────────── #
 EXPERIMENT_NAME = "Embedding Model"
-CONTROL = NomicEmbedPipeline
-CHALLENGER = MxbaiEmbedPipeline
-CONTROL_NAME = "nomic-embed-text"
-CHALLENGER_NAME = "mxbai-embed-large"
+CONTROL = Slate125mPipeline
+CHALLENGER = E5LargePipeline
+CONTROL_NAME = "slate-125m-v2"
+CHALLENGER_NAME = "e5-large"
+
+CHAMPION_CONFIG = {
+    "slate-125m-v2": {"embedding_model": "ibm/slate-125m-english-rtrvr-v2"},
+    "e5-large":      {"embedding_model": "intfloat/multilingual-e5-large"},
+}

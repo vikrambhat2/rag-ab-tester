@@ -1,9 +1,27 @@
+# LangChain
 langchain>=0.3.0
 langchain-community>=0.3.0
-langchain-ollama>=0.2.0
-chromadb>=0.5.0
+langchain-ibm>=0.3.0
+langchain-text-splitters>=0.3.0
+
+# IBM WatsonX AI
+ibm-watsonx-ai>=1.1.0
+
+# Vector store
+opensearch-py>=2.4.0
+
+# Evaluation & stats
 pydantic>=2.0.0
 scipy>=1.12.0
 numpy>=1.26.0
-rich>=13.7.0
+
+# Retrieval
 rank_bm25>=0.2.2
+
+# UI & reporting
+rich>=13.7.0
+streamlit>=1.35.0
+plotly>=5.22.0
+
+# Utilities
+python-dotenv>=1.0.0
