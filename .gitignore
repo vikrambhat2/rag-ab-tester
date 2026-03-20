@@ -22,3 +22,5 @@ data/test_set.json
 .idea/
 .vscode/
 *.swp
+certs/opensearch-ca.pem
+.env

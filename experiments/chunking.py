@@ -3,8 +3,8 @@ Experiment 1 — Chunk Size
 Hypothesis: larger chunks provide more complete context, improving recall
             at the cost of retrieval precision.
 """
-from langchain_ollama import OllamaEmbeddings
 from src.pipeline.base import RAGPipeline
+from src.config import get_embeddings
 
 _PROMPT = (
     "Answer using only the context below.\n"
@@ -21,7 +21,7 @@ class SmallChunkPipeline(RAGPipeline):
         return (256, 25)
 
     def get_embeddings(self):
-        return OllamaEmbeddings(model="nomic-embed-text")
+        return get_embeddings()
 
     def get_prompt(self, query, context):
         return _PROMPT.format(context=context, query=query)
@@ -34,15 +34,20 @@ class LargeChunkPipeline(RAGPipeline):
         return (512, 50)
 
     def get_embeddings(self):
-        return OllamaEmbeddings(model="nomic-embed-text")
+        return get_embeddings()
 
     def get_prompt(self, query, context):
         return _PROMPT.format(context=context, query=query)
 
 
 # ── Experiment registration ─────────────────────────────────────────────── #
-EXPERIMENT_NAME = "Chunk Size"
-CONTROL = SmallChunkPipeline
-CHALLENGER = LargeChunkPipeline
-CONTROL_NAME = "Small-256"
-CHALLENGER_NAME = "Large-512"
+EXPERIMENT_NAME  = "Chunk Size"
+CONTROL          = SmallChunkPipeline
+CHALLENGER       = LargeChunkPipeline
+CONTROL_NAME     = "small-256"
+CHALLENGER_NAME  = "large-512"
+
+CHAMPION_CONFIG = {
+    "small-256": {"chunk_size": 256, "chunk_overlap": 25},
+    "large-512": {"chunk_size": 512, "chunk_overlap": 50},
+}

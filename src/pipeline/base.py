@@ -4,8 +4,8 @@ from typing import Tuple, List
 
 from langchain_ollama import ChatOllama, OllamaEmbeddings
 from langchain_community.vectorstores import Chroma
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import DirectoryLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import DirectoryLoader, TextLoader
 
 
 class RAGPipeline(ABC):
@@ -49,7 +49,7 @@ class RAGPipeline(ABC):
 
     def ingest(self, docs_path: str = "data/docs") -> None:
         """Load docs, split into chunks, embed, and persist to Chroma."""
-        loader = DirectoryLoader(docs_path, glob="**/*.md")
+        loader = DirectoryLoader(docs_path, glob="**/*.md", loader_cls=TextLoader)
         documents = loader.load()
         if not documents:
             raise ValueError(

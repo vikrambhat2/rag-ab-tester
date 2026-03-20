@@ -16,6 +16,7 @@ from pathlib import Path
 
 from rich.console import Console
 
+from src.best_config import save as save_best_config
 from src.evaluator.judge import OllamaJudge
 from src.evaluator.metrics import (
     faithfulness_score,
@@ -179,6 +180,15 @@ def run(experiment_path: str, test_set_path: str, save_json: bool) -> Experiment
 
     if save_json:
         save_experiment_json(result)
+
+    # Auto-update champion config if the experiment defines CHAMPION_CONFIG
+    champion_config = getattr(exp, "CHAMPION_CONFIG", None)
+    if champion_config and overall in champion_config:
+        updates = champion_config[overall]
+        save_best_config(updates)
+        console.print(
+            f"[bold green]Champion config updated:[/bold green] {updates}"
+        )
 
     return result
 
