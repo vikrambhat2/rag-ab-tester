@@ -19,19 +19,33 @@ Context:
 Question: {query}
 Answer:"""
 
-_STRICT_PROMPT = """\
-Answer using ONLY the information in the context below.
-Do not use prior knowledge. If the context is insufficient, say "I don't know."
+# ── Challenger ────────────────────────────────────────────────────────────── #
+# Expert QA system — XML-delimited context, strict abstention string,
+# no reasoning, verbatim grounding, no speculation.
+_CHALLENGER_PROMPT = """\
+You are an expert question-answering system.
+You must answer the question using ONLY the information provided below.
+Do NOT use prior knowledge, assumptions, or external facts.
+If the information does not contain enough evidence to answer the question, \
+respond exactly with: "Not answerable from the provided information."
 
-Context:
+Rules:
+- Base every statement directly on the provided information.
+- Do not add, infer, or speculate beyond the text.
+- Do not rephrase the question.
+- Be concise and factual.
+- Do not explain your reasoning.
+
+<information>
 {context}
+</information>
 
-Question: {query}
+<q>{query}</q>
 Answer:"""
 
 
-class OpenPromptPipeline(RAGPipeline):
-    """Helpful but unconstrained — may draw on parametric knowledge."""
+class ConversationalPromptPipeline(RAGPipeline):
+    """Step-by-step conversational assistant with NO_ANSWER abstention."""
 
     def get_chunk_size(self):
         return (best("chunk_size"), best("chunk_overlap"))
@@ -40,11 +54,11 @@ class OpenPromptPipeline(RAGPipeline):
         return get_embeddings(best("embedding_model"))
 
     def get_prompt(self, query, context):
-        return _OPEN_PROMPT.format(context=context, query=query)
+        return _CONTROL_PROMPT.format(context=context, query=query)
 
 
-class StrictPromptPipeline(RAGPipeline):
-    """Strictly grounded — must stay within the retrieved context."""
+class ExpertQAPromptPipeline(RAGPipeline):
+    """Strict XML-delimited expert QA with explicit abstention, no reasoning."""
 
     def get_chunk_size(self):
         return (best("chunk_size"), best("chunk_overlap"))
@@ -53,7 +67,7 @@ class StrictPromptPipeline(RAGPipeline):
         return get_embeddings(best("embedding_model"))
 
     def get_prompt(self, query, context):
-        return _STRICT_PROMPT.format(context=context, query=query)
+        return _CHALLENGER_PROMPT.format(context=context, query=query)
 
 
 # ── Experiment registration ─────────────────────────────────────────────── #

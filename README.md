@@ -76,6 +76,7 @@ rag-ab-tester/
 │   │   ├── metrics.py       4 RAG metrics
 │   │   └── stats.py         Paired t-test + Cohen's d + CI
 │   └── report/report.py     Rich terminal tables + JSON export
+├── streamlit_app/           Optional Streamlit dashboard
 ├── ingest.py                Generate test_set.json from docs
 ├── run_experiment.py        Run a single experiment
 └── run_all.py               Run all experiments/
@@ -194,4 +195,12 @@ python run_experiment.py --experiment <path> [--test-set data/test_set.json] [--
 
 # All experiments
 python run_all.py [--include chunking prompt] [--exclude embedding] [--save-json]
+```
+
+## Environment Variables (optional overrides)
+
+```bash
+OLLAMA_LLM_MODEL=llama3.2          # default LLM
+OLLAMA_EMBED_MODEL=nomic-embed-text # default embedding model
+OLLAMA_BASE_URL=http://localhost:11434
 ```
