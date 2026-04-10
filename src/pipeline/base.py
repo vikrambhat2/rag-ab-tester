@@ -2,10 +2,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Tuple, List
 
-from langchain_ollama import ChatOllama, OllamaEmbeddings
-from langchain_community.vectorstores import Chroma
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
 class RAGPipeline(ABC):
@@ -19,21 +17,24 @@ class RAGPipeline(ABC):
 
     Override `ingest()` or `retrieve()` for structural changes
     (e.g. hybrid retrieval).
+
+    Each pipeline is scoped to an isolated OpenSearch index so control
+    and challenger never share state.
     """
 
-    def __init__(self, collection_name: str, persist_dir: str):
-        self.llm = ChatOllama(model="llama3.2", temperature=0)
-        self.collection_name = collection_name
-        self.persist_dir = persist_dir
-        self.vectorstore: Chroma | None = None
+    def __init__(self, index_name: str):
+        from src.config import get_llm
+        self.index_name = index_name
+        self.llm = get_llm()
+        self.vectorstore = None
 
     # ------------------------------------------------------------------ #
     #  Abstract interface                                                  #
     # ------------------------------------------------------------------ #
 
     @abstractmethod
-    def get_embeddings(self) -> OllamaEmbeddings:
-        """Return the embedding model to use for this variant."""
+    def get_embeddings(self):
+        """Return a LangChain Embeddings instance for this variant."""
 
     @abstractmethod
     def get_chunk_size(self) -> Tuple[int, int]:
@@ -48,13 +49,16 @@ class RAGPipeline(ABC):
     # ------------------------------------------------------------------ #
 
     def ingest(self, docs_path: str = "data/docs") -> None:
-        """Load docs, split into chunks, embed, and persist to Chroma."""
+        """Load docs, split into chunks, embed, and index into OpenSearch."""
+        from langchain_community.vectorstores import OpenSearchVectorSearch
+        from src.config import get_opensearch_kwargs
+
         loader = DirectoryLoader(docs_path, glob="**/*.md", loader_cls=TextLoader)
         documents = loader.load()
         if not documents:
             raise ValueError(
                 f"No markdown documents found in '{docs_path}'. "
-                "Run ingest.py first or add .md files to data/docs/."
+                "Add .md files to data/docs/ before running experiments."
             )
 
         chunk_size, overlap = self.get_chunk_size()
@@ -64,11 +68,15 @@ class RAGPipeline(ABC):
         )
         chunks = splitter.split_documents(documents)
 
-        self.vectorstore = Chroma.from_documents(
+        os_kwargs = get_opensearch_kwargs()
+
+        self.vectorstore = OpenSearchVectorSearch.from_documents(
             chunks,
             embedding=self.get_embeddings(),
-            collection_name=self.collection_name,
-            persist_directory=self.persist_dir,
+            index_name=self.index_name,
+            engine="lucene",
+            space_type="cosinesimil",
+            **os_kwargs,
         )
 
     def retrieve(self, query: str, k: int = 3) -> List[str]:

@@ -11,13 +11,13 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
 
 from rich.console import Console
 
-from src.best_config import save as save_best_config
-from src.evaluator.judge import OllamaJudge
+from src.evaluator.judge import WatsonxJudge
 from src.evaluator.metrics import (
     faithfulness_score,
     answer_relevance_score,
@@ -27,6 +27,7 @@ from src.evaluator.metrics import (
 from src.evaluator.stats import compare_metric
 from src.models.schemas import ExperimentResult, QueryScore, VariantResult
 from src.report.report import print_experiment, save_experiment_json
+from src.best_config import save as save_best, summary as best_summary
 
 console = Console()
 
@@ -54,10 +55,20 @@ def load_experiment(path: str):
     return mod
 
 
+def _safe_index(prefix: str, name: str) -> str:
+    """
+    Build an OpenSearch-safe index name.
+    Rules: lowercase, alphanumeric + hyphens/underscores, no leading - or _.
+    """
+    slug = re.sub(r"[^a-z0-9_-]", "_", name.lower())
+    slug = re.sub(r"_+", "_", slug).strip("_-")
+    return f"{prefix}_{slug}"[:255]
+
+
 def score_variant(
     pipeline,
     test_cases: list[dict],
-    judge: OllamaJudge,
+    judge: WatsonxJudge,
     name: str,
 ) -> VariantResult:
     """Run all test cases through a pipeline variant and score each one."""
@@ -122,17 +133,11 @@ def run(experiment_path: str, test_set_path: str, save_json: bool) -> Experiment
         f"[bold cyan]{'=' * 60}[/bold cyan]"
     )
 
-    judge = OllamaJudge()
+    judge = WatsonxJudge()
 
-    # Instantiate pipelines with isolated Chroma collections
-    control = exp.CONTROL(
-        collection_name=f"ctrl_{exp.CONTROL_NAME.replace(' ', '_')}",
-        persist_dir=f"./.chroma/ctrl_{exp.CONTROL_NAME.replace(' ', '_')}",
-    )
-    challenger = exp.CHALLENGER(
-        collection_name=f"chal_{exp.CHALLENGER_NAME.replace(' ', '_')}",
-        persist_dir=f"./.chroma/chal_{exp.CHALLENGER_NAME.replace(' ', '_')}",
-    )
+    # Instantiate pipelines with isolated OpenSearch indices
+    control = exp.CONTROL(index_name=_safe_index("ctrl", exp.CONTROL_NAME))
+    challenger = exp.CHALLENGER(index_name=_safe_index("chal", exp.CHALLENGER_NAME))
 
     console.print(f"\n[bold]Ingesting: {exp.CONTROL_NAME}[/bold]")
     control.ingest()
@@ -181,13 +186,20 @@ def run(experiment_path: str, test_set_path: str, save_json: bool) -> Experiment
     if save_json:
         save_experiment_json(result)
 
-    # Auto-update champion config if the experiment defines CHAMPION_CONFIG
+    # ── Auto-save champion config ────────────────────────────────────────── #
     champion_config = getattr(exp, "CHAMPION_CONFIG", None)
-    if champion_config and overall in champion_config:
-        updates = champion_config[overall]
-        save_best_config(updates)
+    if champion_config and overall != "no clear winner":
+        updates = champion_config.get(overall)
+        if updates:
+            save_best(updates)
+            console.print(
+                f"\n[bold green]✓ Champion config updated:[/bold green] "
+                f"{best_summary()}"
+            )
+    elif champion_config and overall == "no clear winner":
         console.print(
-            f"[bold green]Champion config updated:[/bold green] {updates}"
+            f"\n[dim]Champion config unchanged (no clear winner): "
+            f"{best_summary()}[/dim]"
         )
 
     return result

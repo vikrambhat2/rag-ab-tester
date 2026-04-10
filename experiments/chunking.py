@@ -2,6 +2,9 @@
 Experiment 1 — Chunk Size
 Hypothesis: larger chunks provide more complete context, improving recall
             at the cost of retrieval precision.
+
+The winner's chunk_size + chunk_overlap are saved to results/best_config.json
+and used as the fixed baseline for all downstream experiments.
 """
 from src.pipeline.base import RAGPipeline
 from src.config import get_embeddings
@@ -41,13 +44,13 @@ class LargeChunkPipeline(RAGPipeline):
 
 
 # ── Experiment registration ─────────────────────────────────────────────── #
-EXPERIMENT_NAME  = "Chunk Size"
-CONTROL          = SmallChunkPipeline
-CHALLENGER       = LargeChunkPipeline
-CONTROL_NAME     = "small-256"
-CHALLENGER_NAME  = "large-512"
+EXPERIMENT_NAME = "Chunk Size"
+CONTROL = SmallChunkPipeline
+CHALLENGER = LargeChunkPipeline
+CONTROL_NAME = "Small-256"
+CHALLENGER_NAME = "Large-512"
 
 CHAMPION_CONFIG = {
-    "small-256": {"chunk_size": 256, "chunk_overlap": 25},
-    "large-512": {"chunk_size": 512, "chunk_overlap": 50},
+    "Small-256": {"chunk_size": 256, "chunk_overlap": 25},
+    "Large-512": {"chunk_size": 512, "chunk_overlap": 50},
 }

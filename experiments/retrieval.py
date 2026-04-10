@@ -37,9 +37,8 @@ class SemanticPipeline(RAGPipeline):
 
 class HybridPipeline(RAGPipeline):
     """
-    Hybrid retrieval: BM25 keyword results merged with vector results.
-    BM25 candidates come first (keyword signal), vector results fill
-    remaining slots. Duplicates are dropped.
+    Hybrid retrieval: vector results + BM25 keyword matching merged by
+    deduplication (BM25 candidates first, vector fills remaining slots).
     """
 
     def get_chunk_size(self):
@@ -52,13 +51,13 @@ class HybridPipeline(RAGPipeline):
         return _PROMPT.format(context=context, query=query)
 
     def ingest(self, docs_path: str = "data/docs"):
-        # Standard vector ingest
+        # Standard vector ingest into OpenSearch
         super().ingest(docs_path)
         # Also build BM25 index from the same chunks
-        chunk_size, overlap = self.get_chunk_size()
+        chunk_size, chunk_overlap = best("chunk_size"), best("chunk_overlap")
         loader = DirectoryLoader(docs_path, glob="**/*.md", loader_cls=TextLoader)
         splitter = RecursiveCharacterTextSplitter(
-            chunk_size=chunk_size, chunk_overlap=overlap
+            chunk_size=chunk_size, chunk_overlap=chunk_overlap
         )
         self.raw_chunks = splitter.split_documents(loader.load())
 
@@ -70,7 +69,7 @@ class HybridPipeline(RAGPipeline):
         # BM25 results (keyword)
         bm25_ret = BM25Retriever.from_documents(self.raw_chunks, k=k)
         bm25_docs = bm25_ret.invoke(query)
-        # Merge: deduplicate by content, BM25 first
+        # Merge: BM25 first (keyword signal), then fill with vector results
         seen: set[str] = set()
         merged = []
         for doc in bm25_docs + vector_docs:
@@ -81,13 +80,13 @@ class HybridPipeline(RAGPipeline):
 
 
 # ── Experiment registration ─────────────────────────────────────────────── #
-EXPERIMENT_NAME  = "Retrieval Strategy"
-CONTROL          = SemanticPipeline
-CHALLENGER       = HybridPipeline
-CONTROL_NAME     = "semantic"
-CHALLENGER_NAME  = "hybrid-bm25"
+EXPERIMENT_NAME = "Retrieval Strategy"
+CONTROL = SemanticPipeline
+CHALLENGER = HybridPipeline
+CONTROL_NAME = "Semantic"
+CHALLENGER_NAME = "Hybrid-BM25"
 
 CHAMPION_CONFIG = {
-    "semantic":    {"retrieval_strategy": "semantic"},
-    "hybrid-bm25": {"retrieval_strategy": "hybrid"},
+    "Semantic":    {"retrieval_strategy": "semantic"},
+    "Hybrid-BM25": {"retrieval_strategy": "hybrid"},
 }
