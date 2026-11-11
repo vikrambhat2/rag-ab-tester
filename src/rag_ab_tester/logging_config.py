@@ -20,5 +20,5 @@ def setup_logging(verbose: bool = False) -> None:
         force=True,
     )
     # Third-party libraries are noisy at DEBUG.
-    for noisy in ("urllib3", "opensearch", "httpx", "httpcore", "ibm_watsonx_ai"):
+    for noisy in ("urllib3", "httpx", "httpcore", "openai"):
         logging.getLogger(noisy).setLevel(max(level, logging.WARNING))

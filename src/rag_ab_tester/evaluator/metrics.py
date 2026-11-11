@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from src.evaluator.judge import OllamaJudge
+from rag_ab_tester.evaluator.judge import LLMJudge
 
 
-def faithfulness_score(answer: str, context_chunks: list[str], judge: OllamaJudge) -> float:
+def faithfulness_score(answer: str, context_chunks: list[str], judge: LLMJudge) -> float:
     """
     Measures whether the answer is grounded in the retrieved context.
     High score = no hallucination relative to the provided chunks.
@@ -12,7 +12,7 @@ def faithfulness_score(answer: str, context_chunks: list[str], judge: OllamaJudg
     return judge.score_faithfulness(answer, context)
 
 
-def answer_relevance_score(question: str, answer: str, judge: OllamaJudge) -> float:
+def answer_relevance_score(question: str, answer: str, judge: LLMJudge) -> float:
     """
     Measures whether the answer addresses the question.
     High score = directly answers what was asked.
@@ -20,7 +20,7 @@ def answer_relevance_score(question: str, answer: str, judge: OllamaJudge) -> fl
     return judge.score_answer_relevance(question, answer)
 
 
-def context_precision_score(question: str, context_chunks: list[str], judge: OllamaJudge) -> float:
+def context_precision_score(question: str, context_chunks: list[str], judge: LLMJudge) -> float:
     """
     Measures the fraction of retrieved chunks that are relevant.
     High score = retriever returned mostly useful chunks (low noise).
@@ -32,7 +32,7 @@ def context_recall_score(
     question: str,
     context_chunks: list[str],
     ground_truth: str,
-    judge: OllamaJudge,
+    judge: LLMJudge,
 ) -> float:
     """
     Measures whether the retrieved context covers the ground truth.

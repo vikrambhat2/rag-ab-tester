@@ -8,8 +8,9 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from src.evaluator.stats import effect_size_label
-from src.models.schemas import ABReport, ExperimentResult, MetricComparison
+from rag_ab_tester.evaluator.stats import effect_size_label
+from rag_ab_tester.models.schemas import ABReport, ExperimentResult, MetricComparison
+from rag_ab_tester.paths import results_dir
 
 console = Console()
 
@@ -88,17 +89,20 @@ def print_report(report: ABReport) -> None:
     console.rule()
 
 
-def save_report_json(report: ABReport, path: str = "results/report.json") -> None:
-    """Persist the full ABReport as JSON."""
-    output = Path(path)
+def save_report_json(report: ABReport, path: str | Path | None = None) -> None:
+    """Persist the full ABReport as JSON (default: <results dir>/report.json)."""
+    output = Path(path) if path else results_dir() / "report.json"
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report.model_dump(), indent=2))
     console.print(f"[dim]Report saved → {output}[/dim]")
 
 
-def save_experiment_json(result: ExperimentResult, results_dir: str = "results") -> None:
-    """Persist a single ExperimentResult as JSON."""
-    output = Path(results_dir) / f"{result.experiment_name.lower().replace(' ', '_')}.json"
+def save_experiment_json(result: ExperimentResult, directory: str | Path | None = None) -> None:
+    """Persist a single ExperimentResult as JSON (default: the results dir)."""
+    output = (
+        Path(directory or results_dir())
+        / f"{result.experiment_name.lower().replace(' ', '_')}.json"
+    )
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(result.model_dump(), indent=2))
     console.print(f"[dim]Result saved → {output}[/dim]")

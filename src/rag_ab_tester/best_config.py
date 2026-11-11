@@ -6,7 +6,7 @@ results/best_config.json so subsequent experiments automatically build
 on proven winners rather than hardcoded defaults.
 
 Usage:
-    from src.best_config import get, save
+    from rag_ab_tester.best_config import get, save
 
     # Read a value (falls back to default if not yet saved)
     chunk_size, chunk_overlap = get("chunk_size"), get("chunk_overlap")
@@ -20,13 +20,18 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-_FILE = Path("results/best_config.json")
+from rag_ab_tester.paths import results_dir
+
+
+def _file() -> Path:
+    return results_dir() / "best_config.json"
+
 
 # Defaults are used when an experiment has not been run yet.
 DEFAULTS: dict = {
     "chunk_size": 512,
     "chunk_overlap": 50,
-    "embedding_model": "ibm/slate-125m-english-rtrvr-v2",
+    "embedding_model": "",  # "" = use EMBED_MODEL from the environment
     "retrieval_strategy": "semantic",  # "semantic" | "hybrid"
     "prompt_template": "open",  # "open" | "strict"
 }
@@ -42,8 +47,8 @@ EXPERIMENT_KEYS: dict[str, list[str]] = {
 
 def load() -> dict:
     """Return current best config merged over defaults."""
-    if _FILE.exists():
-        stored = json.loads(_FILE.read_text())
+    if _file().exists():
+        stored = json.loads(_file().read_text())
         return {**DEFAULTS, **stored}
     return DEFAULTS.copy()
 
@@ -57,9 +62,9 @@ def save(updates: dict) -> None:
     """Persist one or more key-value pairs into the best config store."""
     current = load()
     current.update(updates)
-    _FILE.parent.mkdir(parents=True, exist_ok=True)
+    _file().parent.mkdir(parents=True, exist_ok=True)
     # Write only keys that are in DEFAULTS to avoid cruft accumulation
-    _FILE.write_text(json.dumps({k: current[k] for k in DEFAULTS if k in current}, indent=2))
+    _file().write_text(json.dumps({k: current[k] for k in DEFAULTS if k in current}, indent=2))
 
 
 def summary() -> str:
@@ -67,7 +72,7 @@ def summary() -> str:
     cfg = load()
     return (
         f"chunk={cfg['chunk_size']}/{cfg['chunk_overlap']}  "
-        f"embed={cfg['embedding_model']}  "
+        f"embed={cfg['embedding_model'] or 'default'}  "
         f"retrieval={cfg['retrieval_strategy']}  "
         f"prompt={cfg['prompt_template']}"
     )

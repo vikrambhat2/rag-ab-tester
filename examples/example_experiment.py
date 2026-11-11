@@ -3,11 +3,11 @@ Custom Experiment Template
 Replace the pipeline definitions below with your own variants.
 
 Run with:
-    uv run python run_experiment.py --experiment experiments/custom/example_experiment.py
+    rag-ab run examples/example_experiment.py
 """
 
-from src.config import get_embeddings
-from src.pipeline.base import RAGPipeline
+from rag_ab_tester.config import get_embeddings
+from rag_ab_tester.pipeline.base import RAGPipeline
 
 _PROMPT = "Answer using only the context below.\nContext: {context}\nQuestion: {query}\nAnswer:"
 

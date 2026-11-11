@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import logging
 import re
+from typing import Any
 
-from src.retry import with_retry
+from rag_ab_tester.protocols import as_chat_model, to_text
+from rag_ab_tester.retry import with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -19,10 +21,11 @@ class LLMJudge:
     (uncertain) rather than crashing the whole experiment run.
     """
 
-    def __init__(self, model_id: str | None = None):
-        from src.config import get_llm
+    def __init__(self, model_id: str | None = None, llm: Any = None):
+        """``llm`` is any chat model (``invoke(prompt)``); default is the configured judge LLM."""
+        from rag_ab_tester.config import get_llm
 
-        self.llm = get_llm(model_id, role="judge")
+        self.llm = as_chat_model(llm) if llm is not None else get_llm(model_id, role="judge")
 
     # ------------------------------------------------------------------ #
     #  Internal helpers                                                    #
@@ -42,14 +45,14 @@ class LLMJudge:
         """
         for attempt in (1, 2):
             try:
-                response = with_retry(self.llm.invoke, prompt)
-                score = self._extract_score(response.content)
+                text = to_text(with_retry(self.llm.invoke, prompt))
+                score = self._extract_score(text)
                 if score is not None:
                     return max(0.0, min(1.0, score))
                 logger.warning(
                     "Judge returned no parseable score (attempt %d): %r",
                     attempt,
-                    response.content[:120],
+                    text[:120],
                 )
             except Exception as exc:
                 logger.warning("Judge call failed (attempt %d): %s", attempt, exc)
@@ -138,8 +141,3 @@ Does the retrieved context contain enough information to derive the ground truth
 
 Respond with only a single decimal number between 0 and 1."""
         return self.score(prompt)
-
-
-# Aliases for backwards compatibility
-WatsonxJudge = LLMJudge
-OllamaJudge = LLMJudge

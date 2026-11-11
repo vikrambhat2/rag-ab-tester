@@ -9,14 +9,9 @@ Falls back to defaults if upstream experiments have not been run yet.
 
 from typing import Any
 
-from langchain_community.document_loaders import DirectoryLoader, TextLoader
-from langchain_community.retrievers import BM25Retriever
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-
-from src.best_config import get as best
-from src.config import get_embeddings
-from src.pipeline.base import RAGPipeline
-from src.retry import with_retry
+from rag_ab_tester.best_config import get as best
+from rag_ab_tester.config import get_embeddings, import_optional
+from rag_ab_tester.pipeline.base import RAGPipeline
 
 _PROMPT = "Answer using only the context below.\nContext: {context}\nQuestion: {query}\nAnswer:"
 
@@ -28,7 +23,7 @@ class SemanticPipeline(RAGPipeline):
         return (best("chunk_size"), best("chunk_overlap"))
 
     def get_embeddings(self):
-        return get_embeddings(best("embedding_model"))
+        return get_embeddings(best("embedding_model") or None)
 
     def get_prompt(self, query, context):
         return _PROMPT.format(context=context, query=query)
@@ -44,40 +39,28 @@ class HybridPipeline(RAGPipeline):
         return (best("chunk_size"), best("chunk_overlap"))
 
     def get_embeddings(self):
-        return get_embeddings(best("embedding_model"))
+        return get_embeddings(best("embedding_model") or None)
 
     def get_prompt(self, query, context):
         return _PROMPT.format(context=context, query=query)
 
-    def ingest(self, docs_path: str = "data/docs"):
-        # Standard vector ingest into OpenSearch
-        super().ingest(docs_path)
-        # Also build BM25 index from the same chunks
-        chunk_size, chunk_overlap = best("chunk_size"), best("chunk_overlap")
-        loader = DirectoryLoader(docs_path, glob="**/*.md", loader_cls=TextLoader)
-        splitter = RecursiveCharacterTextSplitter(
-            chunk_size=chunk_size, chunk_overlap=chunk_overlap
-        )
-        self.raw_chunks = splitter.split_documents(loader.load())
-        self._bm25: Any = None  # built lazily on first query, then reused
+    _bm25: Any = None  # built lazily on first query, then reused
+
+    def ingest_texts(self, texts):
+        # Standard vector ingest, then keep the same chunks for the BM25 keyword index
+        super().ingest_texts(texts)
+        self.raw_chunks = list(texts)
+        self._bm25 = None
 
     def retrieve(self, query: str, k: int = 3):
-        if self.vectorstore is None:
-            raise RuntimeError("Call ingest() before retrieve().")
-        # Vector results (semantic)
-        vector_docs = with_retry(self.vectorstore.similarity_search, query, k=k)
-        # BM25 results (keyword)
+        vector_chunks = super().retrieve(query, k)  # semantic; checks ingest() was called
         if self._bm25 is None:
-            self._bm25 = BM25Retriever.from_documents(self.raw_chunks, k=k)
-        bm25_docs = self._bm25.invoke(query)
+            bm25 = import_optional("rank_bm25", "docs")
+            self._bm25 = bm25.BM25Okapi([chunk.split() for chunk in self.raw_chunks])
+        bm25_chunks = self._bm25.get_top_n(query.split(), self.raw_chunks, n=k)
         # Merge: BM25 first (keyword signal), then fill with vector results
-        seen: set[str] = set()
-        merged = []
-        for doc in bm25_docs + vector_docs:
-            if doc.page_content not in seen:
-                seen.add(doc.page_content)
-                merged.append(doc)
-        return [doc.page_content for doc in merged[:k]]
+        merged = list(dict.fromkeys(bm25_chunks + vector_chunks))
+        return merged[:k]
 
 
 # ── Experiment registration ─────────────────────────────────────────────── #

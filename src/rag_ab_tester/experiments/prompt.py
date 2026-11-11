@@ -7,9 +7,9 @@ Chunk size and embedding model are read from results/best_config.json.
 Falls back to defaults if upstream experiments have not been run yet.
 """
 
-from src.best_config import get as best
-from src.config import get_embeddings
-from src.pipeline.base import RAGPipeline
+from rag_ab_tester.best_config import get as best
+from rag_ab_tester.config import get_embeddings
+from rag_ab_tester.pipeline.base import RAGPipeline
 
 _OPEN_PROMPT = """\
 Answer the question as helpfully as possible.
@@ -52,7 +52,7 @@ class ConversationalPromptPipeline(RAGPipeline):
         return (best("chunk_size"), best("chunk_overlap"))
 
     def get_embeddings(self):
-        return get_embeddings(best("embedding_model"))
+        return get_embeddings(best("embedding_model") or None)
 
     def get_prompt(self, query, context):
         return _OPEN_PROMPT.format(context=context, query=query)
@@ -65,7 +65,7 @@ class ExpertQAPromptPipeline(RAGPipeline):
         return (best("chunk_size"), best("chunk_overlap"))
 
     def get_embeddings(self):
-        return get_embeddings(best("embedding_model"))
+        return get_embeddings(best("embedding_model") or None)
 
     def get_prompt(self, query, context):
         return _CHALLENGER_PROMPT.format(context=context, query=query)

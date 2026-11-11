@@ -1,4 +1,4 @@
-"""Retry helper for flaky network calls (WatsonX, OpenSearch)."""
+"""Retry helper for flaky network calls (model and vector-store APIs)."""
 
 from __future__ import annotations
 

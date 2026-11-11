@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 from scipy import stats
 
-from src.models.schemas import MetricComparison
+from rag_ab_tester.models.schemas import MetricComparison
 
 
 def cohens_d(a: list[float], b: list[float]) -> float:

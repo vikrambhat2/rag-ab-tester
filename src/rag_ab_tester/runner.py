@@ -1,39 +1,31 @@
-"""
-run_experiment.py — Run a single A/B experiment
-
-Usage:
-    python run_experiment.py --experiment experiments/chunking.py
-    python run_experiment.py --experiment experiments/custom/my_experiment.py
-    python run_experiment.py --experiment experiments/chunking.py --test-set data/test_set.json
-    python run_experiment.py --experiment experiments/chunking.py --save-json
-"""
+"""Run A/B experiments: ingest both variants, score them with an LLM judge, compare statistically."""
 
 from __future__ import annotations
 
-import argparse
 import importlib.util
 import json
 import logging
 import re
-import sys
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from rich.console import Console
 
-from src.best_config import save as save_best
-from src.best_config import summary as best_summary
-from src.config import ConfigError, describe_llm
-from src.evaluator.judge import LLMJudge
-from src.evaluator.metrics import (
+from rag_ab_tester.best_config import save as save_best
+from rag_ab_tester.best_config import summary as best_summary
+from rag_ab_tester.config import describe_llm
+from rag_ab_tester.evaluator.judge import LLMJudge
+from rag_ab_tester.evaluator.metrics import (
     answer_relevance_score,
     context_precision_score,
     context_recall_score,
     faithfulness_score,
 )
-from src.evaluator.stats import compare_metric
-from src.logging_config import setup_logging
-from src.models.schemas import ExperimentResult, QueryScore, VariantResult
-from src.report.report import print_experiment, save_experiment_json
+from rag_ab_tester.evaluator.stats import compare_metric
+from rag_ab_tester.models.schemas import ExperimentResult, QueryScore, VariantResult
+from rag_ab_tester.protocols import Embedder, VectorIndex, model_label
+from rag_ab_tester.report.report import print_experiment, save_experiment_json
 
 console = Console()
 logger = logging.getLogger(__name__)
@@ -55,6 +47,29 @@ METRICS = ["faithfulness", "answer_relevance", "context_precision", "context_rec
 # ──────────────────────────────────────────────────────────────────────────── #
 
 
+BUILTIN_DIR = Path(__file__).parent / "experiments"
+
+
+def builtin_experiments() -> dict[str, Path]:
+    """Names and paths of the experiments that ship with the package."""
+    return {p.stem: p for p in sorted(BUILTIN_DIR.glob("*.py")) if not p.name.startswith("_")}
+
+
+def resolve_experiment(ref: str | Path) -> str:
+    """Resolve a built-in experiment name or a file path to an experiment file path."""
+    path = Path(ref)
+    if path.suffix == ".py" and path.exists():
+        return str(path)
+    builtin = builtin_experiments()
+    name = path.stem if path.suffix == ".py" else str(ref)
+    if name in builtin:
+        return str(builtin[name])
+    raise ExperimentError(
+        f"Unknown experiment '{ref}'. Built-ins: {', '.join(builtin)}; "
+        "or pass the path to your own experiment .py file."
+    )
+
+
 def load_experiment(path: str):
     """Dynamically load an experiment module from a file path."""
     spec = importlib.util.spec_from_file_location("experiment", path)
@@ -72,7 +87,7 @@ def load_experiment(path: str):
 
 def _safe_index(prefix: str, name: str) -> str:
     """
-    Build an OpenSearch-safe index name.
+    Build a store-safe index name.
     Rules: lowercase, alphanumeric + hyphens/underscores, no leading - or _.
     """
     slug = re.sub(r"[^a-z0-9_-]", "_", name.lower())
@@ -134,23 +149,49 @@ def score_variant(
 # ──────────────────────────────────────────────────────────────────────────── #
 
 
-def run(
-    experiment_path: str,
-    test_set_path: str,
-    save_json: bool,
+def run_experiment(
+    experiment: str | Path,
+    test_set_path: str | Path = "data/test_set.json",
+    save_json: bool = False,
     keep_indices: bool = False,
+    docs_path: str | Path = "data/docs",
+    *,
+    llm: Any = None,
+    judge_llm: Any = None,
+    embedder: Embedder | None = None,
+    index_factory: Callable[[str], VectorIndex] | None = None,
 ) -> ExperimentResult:
+    """
+    Run one experiment end to end.
+
+    ``experiment`` is a built-in name (``"chunking"``), or a path to an experiment ``.py`` file.
+
+    Providers are pluggable; anything left as ``None`` falls back to the environment config:
+
+    * ``llm``           chat model for generating answers (any object with ``invoke(prompt)``)
+    * ``judge_llm``     chat model for the LLM judge (use a different model than ``llm``)
+    * ``embedder``      embedding model used by *both* variants (not allowed for experiments
+                        that compare embedders)
+    * ``index_factory`` ``index_name -> VectorIndex``, called once per variant so each gets an
+                        isolated index (default: in-memory)
+    """
+    experiment_path = resolve_experiment(experiment)
     exp = load_experiment(experiment_path)
+    if embedder is not None and getattr(exp, "VARIES_EMBEDDER", False):
+        raise ExperimentError(
+            f"'{exp.EXPERIMENT_NAME}' compares embedding models, so a single embedder= "
+            "override would make both variants identical."
+        )
 
     test_set_file = Path(test_set_path)
     if not test_set_file.exists():
         raise ExperimentError(
-            f"Test set not found at '{test_set_path}'. Run `uv run python ingest.py` first."
+            f"Test set not found at '{test_set_path}'. Run `rag-ab ingest` first."
         )
 
     test_cases: list[dict] = json.loads(test_set_file.read_text())
     if not test_cases:
-        raise ExperimentError("Test set is empty. Re-run ingest.py.")
+        raise ExperimentError("Test set is empty. Re-run `rag-ab ingest`.")
 
     console.print(
         f"\n[bold cyan]{'=' * 60}[/bold cyan]\n"
@@ -161,28 +202,46 @@ def run(
         f"[bold cyan]{'=' * 60}[/bold cyan]"
     )
 
-    judge = LLMJudge()
-    gen_label, judge_label = describe_llm("generator"), describe_llm("judge")
+    judge = LLMJudge(llm=judge_llm) if judge_llm is not None else LLMJudge()
+    gen_label = model_label(llm) if llm is not None else describe_llm("generator")
+    judge_label = model_label(judge_llm) if judge_llm is not None else describe_llm("judge")
     console.print(
         f"[bold]Generator LLM:[/bold] {gen_label}\n[bold]Judge LLM:[/bold]     {judge_label}"
     )
-    if gen_label == judge_label:
+    injected = llm is not None or judge_llm is not None
+    # Injected objects may share a class name without sharing a model, so only trust labels
+    # that include a model name (provider:model), or identity.
+    same_model = (llm is not None and llm is judge_llm) or (
+        gen_label == judge_label and (not injected or ":" in gen_label)
+    )
+    if same_model:
         logger.warning(
             "Judge and generator are the same model (%s); LLM-as-judge scores can be biased "
             "toward the model's own outputs. Set JUDGE_LLM_* to use a different judge.",
             gen_label,
         )
 
-    # Instantiate pipelines with isolated OpenSearch indices
-    control = exp.CONTROL(index_name=_safe_index("ctrl", exp.CONTROL_NAME))
-    challenger = exp.CHALLENGER(index_name=_safe_index("chal", exp.CHALLENGER_NAME))
+    def build(cls, prefix: str, name: str):
+        """Instantiate a variant with its own isolated index; only pass what was overridden."""
+        index_name = _safe_index(prefix, name)
+        kwargs: dict[str, Any] = {}
+        if llm is not None:
+            kwargs["llm"] = llm
+        if embedder is not None:
+            kwargs["embedder"] = embedder
+        if index_factory is not None:
+            kwargs["index"] = index_factory(index_name)
+        return cls(index_name=index_name, **kwargs)
+
+    control = build(exp.CONTROL, "ctrl", exp.CONTROL_NAME)
+    challenger = build(exp.CHALLENGER, "chal", exp.CHALLENGER_NAME)
 
     try:
         console.print(f"\n[bold]Ingesting: {exp.CONTROL_NAME}[/bold]")
-        control.ingest()
+        control.ingest(docs_path)
 
         console.print(f"[bold]Ingesting: {exp.CHALLENGER_NAME}[/bold]")
-        challenger.ingest()
+        challenger.ingest(docs_path)
 
         console.print(f"\n[bold]Scoring: {exp.CONTROL_NAME}[/bold]")
         control_result = score_variant(control, test_cases, judge, exp.CONTROL_NAME)
@@ -240,26 +299,3 @@ def run(
         console.print(f"\n[dim]Champion config unchanged (no clear winner): {best_summary()}[/dim]")
 
     return result
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run a single RAG A/B experiment.")
-    parser.add_argument("--experiment", required=True, help="Path to experiment .py file")
-    parser.add_argument("--test-set", default="data/test_set.json", help="Path to test_set.json")
-    parser.add_argument(
-        "--save-json", action="store_true", help="Save result to results/<name>.json"
-    )
-    parser.add_argument(
-        "--keep-indices",
-        action="store_true",
-        help="Do not delete the OpenSearch indices after the run (useful for debugging)",
-    )
-    parser.add_argument("-v", "--verbose", action="store_true", help="Debug logging")
-    args = parser.parse_args()
-
-    setup_logging(args.verbose)
-    try:
-        run(args.experiment, args.test_set, args.save_json, args.keep_indices)
-    except (ConfigError, ExperimentError) as exc:
-        console.print(f"[red]{exc}[/red]")
-        sys.exit(1)

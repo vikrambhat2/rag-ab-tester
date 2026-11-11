@@ -7,8 +7,8 @@ The winner's chunk_size + chunk_overlap are saved to results/best_config.json
 and used as the fixed baseline for all downstream experiments.
 """
 
-from src.config import get_embeddings
-from src.pipeline.base import RAGPipeline
+from rag_ab_tester.config import get_embeddings
+from rag_ab_tester.pipeline.base import RAGPipeline
 
 _PROMPT = "Answer using only the context below.\nContext: {context}\nQuestion: {query}\nAnswer:"
 
