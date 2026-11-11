@@ -10,9 +10,10 @@ Usage:
 The runner skips __init__.py and the custom/ subdirectory by default.
 To run custom experiments, use run_experiment.py directly.
 """
+
 from __future__ import annotations
+
 import argparse
-import json
 import sys
 from pathlib import Path
 
@@ -20,8 +21,9 @@ from rich.console import Console
 from rich.rule import Rule
 
 from run_experiment import run
+from src.logging_config import setup_logging
 from src.models.schemas import ABReport
-from src.report.report import print_report, save_report_json
+from src.report.report import save_report_json
 
 console = Console()
 
@@ -29,11 +31,7 @@ console = Console()
 def discover_experiments(experiments_dir: str = "experiments") -> list[Path]:
     """Return all .py files in experiments/ (excluding __init__ and custom/)."""
     root = Path(experiments_dir)
-    return sorted(
-        p
-        for p in root.glob("*.py")
-        if p.name != "__init__.py"
-    )
+    return sorted(p for p in root.glob("*.py") if p.name != "__init__.py")
 
 
 def main() -> None:
@@ -65,7 +63,12 @@ def main() -> None:
         action="store_true",
         help="Save individual results + combined report to results/",
     )
+    parser.add_argument(
+        "--keep-indices", action="store_true", help="Do not delete OpenSearch indices after runs"
+    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Debug logging")
     args = parser.parse_args()
+    setup_logging(args.verbose)
 
     experiment_files = discover_experiments(args.experiments_dir)
 
@@ -76,13 +79,11 @@ def main() -> None:
     # Apply include/exclude filters
     if args.include:
         experiment_files = [
-            p for p in experiment_files
-            if any(inc in p.stem for inc in args.include)
+            p for p in experiment_files if any(inc in p.stem for inc in args.include)
         ]
     if args.exclude:
         experiment_files = [
-            p for p in experiment_files
-            if not any(exc in p.stem for exc in args.exclude)
+            p for p in experiment_files if not any(exc in p.stem for exc in args.exclude)
         ]
 
     if not experiment_files:
@@ -105,6 +106,7 @@ def main() -> None:
                 str(experiment_path),
                 test_set_path=args.test_set,
                 save_json=args.save_json,
+                keep_indices=args.keep_indices,
             )
             report.experiments.append(result)
         except Exception as e:
@@ -116,19 +118,22 @@ def main() -> None:
     for exp_result in report.experiments:
         ow = exp_result.overall_winner
         colour = (
-            "green" if ow == exp_result.challenger_name
-            else "yellow" if ow == exp_result.control_name
+            "green"
+            if ow == exp_result.challenger_name
+            else "yellow"
+            if ow == exp_result.control_name
             else "dim"
         )
-        console.print(
-            f"  {exp_result.experiment_name:30s}  → [{colour}]{ow}[/{colour}]"
-        )
+        console.print(f"  {exp_result.experiment_name:30s}  → [{colour}]{ow}[/{colour}]")
 
     if failed:
         console.print(f"\n[red]Failed experiments:[/red] {', '.join(failed)}")
 
-    if args.save_json:
+    if args.save_json and report.experiments:
         save_report_json(report)
+
+    if failed:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

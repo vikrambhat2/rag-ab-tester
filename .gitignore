@@ -5,9 +5,16 @@ __pycache__/
 .venv/
 venv/
 env/
+*.egg-info/
+build/
+dist/
 
-# ChromaDB persistence
-.chroma/
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
 
 # Results
 results/
@@ -15,12 +22,14 @@ results/
 # Test set (re-generate with ingest.py)
 data/test_set.json
 
-# macOS
-.DS_Store
+# Secrets
+.env
+.env.*
+!.env.example
+certs/
 
-# IDE
+# macOS / IDE
+.DS_Store
 .idea/
 .vscode/
 *.swp
-.env
-certs/opensearch-ca.pem

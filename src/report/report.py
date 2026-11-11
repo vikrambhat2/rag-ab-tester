@@ -1,14 +1,15 @@
 from __future__ import annotations
+
 import json
 from pathlib import Path
 
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
 from rich import box
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
 
-from src.models.schemas import ExperimentResult, ABReport, MetricComparison
 from src.evaluator.stats import effect_size_label
+from src.models.schemas import ABReport, ExperimentResult, MetricComparison
 
 console = Console()
 
@@ -61,17 +62,22 @@ def print_experiment(result: ExperimentResult) -> None:
             p_str,
             d_str,
             ci_str,
-            _winner_cell(cmp, result.challenger_name if cmp.winner == "challenger" else result.control_name),
+            _winner_cell(
+                cmp, result.challenger_name if cmp.winner == "challenger" else result.control_name
+            ),
         )
 
     console.print(table)
 
     # overall winner
-    ow_colour = "green" if result.overall_winner == result.challenger_name else \
-                "yellow" if result.overall_winner == result.control_name else "dim"
-    console.print(
-        f"  → Overall winner: [{ow_colour}]{result.overall_winner}[/{ow_colour}]\n"
+    ow_colour = (
+        "green"
+        if result.overall_winner == result.challenger_name
+        else "yellow"
+        if result.overall_winner == result.control_name
+        else "dim"
     )
+    console.print(f"  → Overall winner: [{ow_colour}]{result.overall_winner}[/{ow_colour}]\n")
 
 
 def print_report(report: ABReport) -> None:

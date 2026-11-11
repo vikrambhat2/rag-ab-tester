@@ -1,9 +1,9 @@
 from __future__ import annotations
-from typing import List
+
 from src.evaluator.judge import OllamaJudge
 
 
-def faithfulness_score(answer: str, context_chunks: List[str], judge: OllamaJudge) -> float:
+def faithfulness_score(answer: str, context_chunks: list[str], judge: OllamaJudge) -> float:
     """
     Measures whether the answer is grounded in the retrieved context.
     High score = no hallucination relative to the provided chunks.
@@ -20,9 +20,7 @@ def answer_relevance_score(question: str, answer: str, judge: OllamaJudge) -> fl
     return judge.score_answer_relevance(question, answer)
 
 
-def context_precision_score(
-    question: str, context_chunks: List[str], judge: OllamaJudge
-) -> float:
+def context_precision_score(question: str, context_chunks: list[str], judge: OllamaJudge) -> float:
     """
     Measures the fraction of retrieved chunks that are relevant.
     High score = retriever returned mostly useful chunks (low noise).
@@ -32,7 +30,7 @@ def context_precision_score(
 
 def context_recall_score(
     question: str,
-    context_chunks: List[str],
+    context_chunks: list[str],
     ground_truth: str,
     judge: OllamaJudge,
 ) -> float:

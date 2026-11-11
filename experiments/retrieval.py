@@ -6,20 +6,19 @@ Hypothesis: hybrid BM25+vector retrieval outperforms pure semantic search
 Chunk size and embedding model are read from results/best_config.json.
 Falls back to defaults if upstream experiments have not been run yet.
 """
-from langchain_community.retrievers import BM25Retriever
+
+from typing import Any
+
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
+from langchain_community.retrievers import BM25Retriever
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from src.pipeline.base import RAGPipeline
-from src.config import get_embeddings
 from src.best_config import get as best
+from src.config import get_embeddings
+from src.pipeline.base import RAGPipeline
+from src.retry import with_retry
 
-_PROMPT = (
-    "Answer using only the context below.\n"
-    "Context: {context}\n"
-    "Question: {query}\n"
-    "Answer:"
-)
+_PROMPT = "Answer using only the context below.\nContext: {context}\nQuestion: {query}\nAnswer:"
 
 
 class SemanticPipeline(RAGPipeline):
@@ -60,15 +59,17 @@ class HybridPipeline(RAGPipeline):
             chunk_size=chunk_size, chunk_overlap=chunk_overlap
         )
         self.raw_chunks = splitter.split_documents(loader.load())
+        self._bm25: Any = None  # built lazily on first query, then reused
 
     def retrieve(self, query: str, k: int = 3):
         if self.vectorstore is None:
             raise RuntimeError("Call ingest() before retrieve().")
         # Vector results (semantic)
-        vector_docs = self.vectorstore.similarity_search(query, k=k)
+        vector_docs = with_retry(self.vectorstore.similarity_search, query, k=k)
         # BM25 results (keyword)
-        bm25_ret = BM25Retriever.from_documents(self.raw_chunks, k=k)
-        bm25_docs = bm25_ret.invoke(query)
+        if self._bm25 is None:
+            self._bm25 = BM25Retriever.from_documents(self.raw_chunks, k=k)
+        bm25_docs = self._bm25.invoke(query)
         # Merge: BM25 first (keyword signal), then fill with vector results
         seen: set[str] = set()
         merged = []
@@ -87,6 +88,6 @@ CONTROL_NAME = "Semantic"
 CHALLENGER_NAME = "Hybrid-BM25"
 
 CHAMPION_CONFIG = {
-    "Semantic":    {"retrieval_strategy": "semantic"},
+    "Semantic": {"retrieval_strategy": "semantic"},
     "Hybrid-BM25": {"retrieval_strategy": "hybrid"},
 }
