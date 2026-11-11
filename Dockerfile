@@ -10,14 +10,16 @@ ENV UV_COMPILE_BYTECODE=1 \
 
 WORKDIR /app
 
-# Dependencies first for better layer caching (CLI only: no UI extra, no dev group).
+# Dependencies first for better layer caching (all extras; no dev group).
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project
+RUN uv sync --frozen --no-dev --all-extras --no-install-project
 
+COPY README.md LICENSE ./
 COPY src ./src
-COPY experiments ./experiments
+RUN uv sync --frozen --no-dev --all-extras
+
+# Sample corpus for trying it out; mount your own docs over /app/data/docs.
 COPY data/docs ./data/docs
-COPY ingest.py run_experiment.py run_all.py ./
 
 # Run as a non-root user; results/ and data/ are the only writable paths.
 RUN useradd --create-home --uid 1000 app \
@@ -27,4 +29,4 @@ USER app
 
 # Credentials are provided at runtime (--env-file .env), never baked into the image.
 ENTRYPOINT []
-CMD ["python", "run_all.py", "--save-json"]
+CMD ["rag-ab", "run-all", "--save-json"]

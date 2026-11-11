@@ -10,6 +10,7 @@ results
 data/test_set.json
 tests
 streamlit_app
+examples
 .mypy_cache
 .ruff_cache
 .pytest_cache

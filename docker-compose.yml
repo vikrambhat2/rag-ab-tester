@@ -1,40 +1,11 @@
-# Local development stack: a disposable single-node OpenSearch + the CLI.
-# WatsonX is a hosted service, so WATSONX_* must still come from your .env.
+# Run the CLI in a container. Credentials come from your .env file (never baked into the image).
 #
-#   docker compose up -d opensearch
-#   docker compose run --rm app python ingest.py
-#   docker compose run --rm app python run_all.py --save-json
+#   docker compose run --rm app rag-ab ingest
+#   docker compose run --rm app rag-ab run-all --save-json
 services:
-  opensearch:
-    image: opensearchproject/opensearch:2.17.1
-    environment:
-      discovery.type: single-node
-      OPENSEARCH_INITIAL_ADMIN_PASSWORD: ${OPENSEARCH_PASSWORD:?set OPENSEARCH_PASSWORD in .env (strong password required)}
-      OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
-    ports:
-      - "127.0.0.1:9200:9200"
-    healthcheck:
-      # Liveness only: any HTTP response (a 401 without credentials is fine) means the node is up.
-      test: ["CMD-SHELL", "curl -sk -o /dev/null https://localhost:9200"]
-      interval: 10s
-      retries: 12
-    volumes:
-      - os-data:/usr/share/opensearch/data
-
   app:
     build: .
     env_file: .env
-    environment:
-      OPENSEARCH_URL: https://opensearch:9200
-      OPENSEARCH_USERNAME: admin
-      # The demo node uses a self-signed certificate; do NOT do this against a real cluster.
-      OPENSEARCH_VERIFY_SSL: "false"
-    depends_on:
-      opensearch:
-        condition: service_healthy
     volumes:
       - ./results:/app/results
       - ./data:/app/data
-
-volumes:
-  os-data:

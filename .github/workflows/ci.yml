@@ -20,7 +20,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-      - run: uv sync --frozen --group dev
+      - run: uv sync --frozen --group dev --all-extras
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy .
@@ -37,8 +37,8 @@ jobs:
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
-      - run: uv sync --frozen --group dev
-      - run: uv run pytest --cov=src --cov-report=term-missing
+      - run: uv sync --frozen --group dev --all-extras
+      - run: uv run pytest --cov=rag_ab_tester --cov-report=term-missing
 
   secrets:
     runs-on: ubuntu-latest
@@ -58,4 +58,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t rag-ab-tester .
-      - run: docker run --rm rag-ab-tester python run_experiment.py --help
+      - run: docker run --rm rag-ab-tester rag-ab --help
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv build
+      - run: uvx twine check dist/*
+      - name: Smoke-test the wheel in a clean environment (core install, no extras)
+        run: |
+          uv venv /tmp/clean
+          uv pip install --python /tmp/clean/bin/python dist/*.whl
+          cd "$(mktemp -d)"
+          /tmp/clean/bin/python -I -c "import rag_ab_tester; print(rag_ab_tester.__version__)"
+          /tmp/clean/bin/rag-ab --help
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
