@@ -1,6 +1,6 @@
 import pytest
 
-from src.retry import with_retry
+from rag_ab_tester.retry import with_retry
 
 
 def test_returns_value():

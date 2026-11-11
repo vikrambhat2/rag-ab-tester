@@ -1,11 +1,11 @@
 import pytest
 
-from src import best_config
+from rag_ab_tester import best_config
 
 
 @pytest.fixture(autouse=True)
 def tmp_file(tmp_path, monkeypatch):
-    monkeypatch.setattr(best_config, "_FILE", tmp_path / "results" / "best_config.json")
+    monkeypatch.setenv("RAG_AB_RESULTS_DIR", str(tmp_path / "results"))
 
 
 def test_defaults_when_nothing_saved():

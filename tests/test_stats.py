@@ -1,6 +1,11 @@
 import pytest
 
-from src.evaluator.stats import cohens_d, compare_metric, confidence_interval, effect_size_label
+from rag_ab_tester.evaluator.stats import (
+    cohens_d,
+    compare_metric,
+    confidence_interval,
+    effect_size_label,
+)
 
 
 def test_clear_challenger_win():

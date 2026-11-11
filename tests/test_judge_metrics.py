@@ -1,15 +1,17 @@
 import pytest
-
-from src.evaluator import metrics
-from src.evaluator.judge import LLMJudge
 from tests.conftest import FakeLLM
+
+from rag_ab_tester.evaluator import metrics
+from rag_ab_tester.evaluator.judge import LLMJudge
 
 
 @pytest.fixture
 def judge(monkeypatch, valid_env):
     def make(replies):
         llm = FakeLLM(replies)
-        monkeypatch.setattr("src.config.get_llm", lambda model_id=None, role="generator": llm)
+        monkeypatch.setattr(
+            "rag_ab_tester.config.get_llm", lambda model_id=None, role="generator": llm
+        )
         return LLMJudge(), llm
 
     return make
@@ -48,7 +50,7 @@ def test_score_falls_back_to_neutral(judge):
 
 
 def test_score_survives_llm_errors(judge, monkeypatch):
-    monkeypatch.setattr("src.retry.wait_exponential", lambda **kw: lambda *a, **k: 0)
+    monkeypatch.setattr("rag_ab_tester.retry.wait_exponential", lambda **kw: lambda *a, **k: 0)
     j, _ = judge([ValueError("bad request")])  # non-retryable -> fast fail
     assert j.score("p") == 0.5
 
