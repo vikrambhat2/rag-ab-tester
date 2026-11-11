@@ -1,10 +1,17 @@
 from __future__ import annotations
+
+import logging
 import re
 
+from src.retry import with_retry
 
-class WatsonxJudge:
+logger = logging.getLogger(__name__)
+
+
+class LLMJudge:
     """
-    LLM-as-judge using IBM WatsonX AI.
+    LLM-as-judge. Uses the ``judge`` LLM role, so it can be pointed at a different
+    model/provider than the one under test (see JUDGE_LLM_* in .env.example).
 
     All scoring prompts are structured so the model must respond
     with a single float in [0, 1] on the final line.  If parsing
@@ -12,9 +19,10 @@ class WatsonxJudge:
     (uncertain) rather than crashing the whole experiment run.
     """
 
-    def __init__(self, model_id: str | None = None, temperature: float = 0):
+    def __init__(self, model_id: str | None = None):
         from src.config import get_llm
-        self.llm = get_llm(model_id)
+
+        self.llm = get_llm(model_id, role="judge")
 
     # ------------------------------------------------------------------ #
     #  Internal helpers                                                    #
@@ -32,14 +40,20 @@ class WatsonxJudge:
         Send a scoring prompt and return a float in [0, 1].
         Retries once on parse failure; falls back to 0.5.
         """
-        for _ in range(2):
+        for attempt in (1, 2):
             try:
-                response = self.llm.invoke(prompt)
+                response = with_retry(self.llm.invoke, prompt)
                 score = self._extract_score(response.content)
                 if score is not None:
                     return max(0.0, min(1.0, score))
-            except Exception:
-                pass
+                logger.warning(
+                    "Judge returned no parseable score (attempt %d): %r",
+                    attempt,
+                    response.content[:120],
+                )
+            except Exception as exc:
+                logger.warning("Judge call failed (attempt %d): %s", attempt, exc)
+        logger.warning("Judge fell back to neutral score 0.5")
         return 0.5
 
     # ------------------------------------------------------------------ #
@@ -126,5 +140,6 @@ Respond with only a single decimal number between 0 and 1."""
         return self.score(prompt)
 
 
-# Alias for backwards compatibility
-OllamaJudge = WatsonxJudge
+# Aliases for backwards compatibility
+WatsonxJudge = LLMJudge
+OllamaJudge = LLMJudge

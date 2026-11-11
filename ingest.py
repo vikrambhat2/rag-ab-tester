@@ -7,13 +7,17 @@ Usage:
 What it does:
   1. Loads all .md files from data/docs/
   2. Samples random chunks as context
-  3. Calls the local Ollama LLM to generate a question + ground-truth answer per chunk
+  3. Calls the WatsonX LLM to generate a question + ground-truth answer per chunk
   4. Writes the resulting Q&A pairs to data/test_set.json
 """
+
 from __future__ import annotations
+
 import argparse
 import json
+import logging
 import random
+import sys
 from pathlib import Path
 
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
@@ -21,9 +25,12 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from rich.console import Console
 from rich.progress import track
 
-from src.config import get_llm
+from src.config import ConfigError, get_llm
+from src.logging_config import setup_logging
+from src.retry import with_retry
 
 console = Console()
+logger = logging.getLogger(__name__)
 
 _QA_PROMPT = """\
 You are creating a question-answering dataset for evaluating a RAG system.
@@ -42,14 +49,19 @@ ANSWER: <your answer here>"""
 def generate_qa_pair(chunk: str, llm) -> dict | None:
     prompt = _QA_PROMPT.format(context=chunk)
     try:
-        response = llm.invoke(prompt)
-        lines = [l.strip() for l in response.content.strip().splitlines() if l.strip()]
-        question = next((l[len("QUESTION:"):].strip() for l in lines if l.upper().startswith("QUESTION:")), None)
-        answer = next((l[len("ANSWER:"):].strip() for l in lines if l.upper().startswith("ANSWER:")), None)
+        response = with_retry(llm.invoke, prompt)
+        lines = [ln.strip() for ln in response.content.strip().splitlines() if ln.strip()]
+        question = next(
+            (ln[len("QUESTION:") :].strip() for ln in lines if ln.upper().startswith("QUESTION:")),
+            None,
+        )
+        answer = next(
+            (ln[len("ANSWER:") :].strip() for ln in lines if ln.upper().startswith("ANSWER:")), None
+        )
         if question and answer:
             return {"query": question, "ground_truth": answer, "context_snippet": chunk[:200]}
     except Exception as e:
-        console.print(f"[red]Generation error: {e}[/red]")
+        logger.warning("QA generation failed: %s", e)
     return None
 
 
@@ -62,13 +74,17 @@ def main(docs_path: str, num_questions: int, output: str) -> None:
         console.print(
             "[red]No .md files found. Add markdown files to data/docs/ before running ingest.py.[/red]"
         )
-        return
+        sys.exit(1)
 
     splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=50)
     chunks = splitter.split_documents(documents)
     console.print(f"Split into {len(chunks)} chunks from {len(documents)} documents.")
 
-    llm = get_llm()
+    try:
+        llm = get_llm()
+    except ConfigError as e:
+        console.print(f"[red]{e}[/red]")
+        sys.exit(2)
 
     # Sample without replacement (or use all if fewer chunks than requested)
     sample_size = min(num_questions, len(chunks))
@@ -98,8 +114,17 @@ def main(docs_path: str, num_questions: int, output: str) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate a RAG test set from docs.")
     parser.add_argument("--docs-path", default="data/docs", help="Path to .md documents")
-    parser.add_argument("--num-questions", type=int, default=20, help="Number of QA pairs to generate")
+    parser.add_argument(
+        "--num-questions", type=int, default=20, help="Number of QA pairs to generate"
+    )
     parser.add_argument("--output", default="data/test_set.json", help="Output JSON path")
+    parser.add_argument(
+        "--seed", type=int, default=None, help="Random seed for reproducible sampling"
+    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Debug logging")
     args = parser.parse_args()
 
+    setup_logging(args.verbose)
+    if args.seed is not None:
+        random.seed(args.seed)
     main(args.docs_path, args.num_questions, args.output)

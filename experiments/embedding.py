@@ -9,16 +9,12 @@ Falls back to (512, 50) if the chunking experiment has not been run yet.
 
 Both models are served via WatsonX AI.
 """
-from src.pipeline.base import RAGPipeline
-from src.config import get_embeddings
-from src.best_config import get as best
 
-_PROMPT = (
-    "Answer using only the context below.\n"
-    "Context: {context}\n"
-    "Question: {query}\n"
-    "Answer:"
-)
+from src.best_config import get as best
+from src.config import get_embeddings
+from src.pipeline.base import RAGPipeline
+
+_PROMPT = "Answer using only the context below.\nContext: {context}\nQuestion: {query}\nAnswer:"
 
 
 class Slate125mPipeline(RAGPipeline):
@@ -56,5 +52,5 @@ CHALLENGER_NAME = "e5-large"
 
 CHAMPION_CONFIG = {
     "slate-125m-v2": {"embedding_model": "ibm/slate-125m-english-rtrvr-v2"},
-    "e5-large":      {"embedding_model": "intfloat/multilingual-e5-large"},
+    "e5-large": {"embedding_model": "intfloat/multilingual-e5-large"},
 }

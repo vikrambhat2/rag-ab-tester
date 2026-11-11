@@ -1,6 +1,8 @@
 from __future__ import annotations
+
 import numpy as np
 from scipy import stats
+
 from src.models.schemas import MetricComparison
 
 
@@ -12,10 +14,7 @@ def cohens_d(a: list[float], b: list[float]) -> float:
     """
     mean_diff = np.mean(b) - np.mean(a)
     pooled_std = np.sqrt(
-        (
-            (len(a) - 1) * np.std(a, ddof=1) ** 2
-            + (len(b) - 1) * np.std(b, ddof=1) ** 2
-        )
+        ((len(a) - 1) * np.std(a, ddof=1) ** 2 + (len(b) - 1) * np.std(b, ddof=1) ** 2)
         / (len(a) + len(b) - 2)
     )
     return float(mean_diff / pooled_std) if pooled_std > 0 else 0.0
@@ -49,6 +48,14 @@ def compare_metric(
         significant but negligible → "no difference" (not worth acting on)
         not significant            → "no difference" (could be noise)
     """
+    if len(control_scores) != len(challenger_scores):
+        raise ValueError(
+            f"Paired samples must be the same length "
+            f"({len(control_scores)} vs {len(challenger_scores)})"
+        )
+    if len(control_scores) < 2:
+        raise ValueError("At least 2 test cases are required for a paired t-test")
+
     control_avg = float(np.mean(control_scores))
     challenger_avg = float(np.mean(challenger_scores))
     delta = challenger_avg - control_avg
@@ -56,6 +63,10 @@ def compare_metric(
     _, p_value = stats.ttest_rel(control_scores, challenger_scores)
     d = cohens_d(control_scores, challenger_scores)
     ci_low, ci_high = confidence_interval(control_scores, challenger_scores)
+
+    if np.isnan(p_value):  # zero variance in differences (identical scores)
+        p_value = 1.0
+        ci_low = ci_high = delta
 
     significant = bool(p_value < 0.05)
     meaningful = bool(abs(d) >= 0.2)

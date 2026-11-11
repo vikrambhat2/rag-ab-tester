@@ -6,15 +6,11 @@ Hypothesis: larger chunks provide more complete context, improving recall
 The winner's chunk_size + chunk_overlap are saved to results/best_config.json
 and used as the fixed baseline for all downstream experiments.
 """
-from src.pipeline.base import RAGPipeline
-from src.config import get_embeddings
 
-_PROMPT = (
-    "Answer using only the context below.\n"
-    "Context: {context}\n"
-    "Question: {query}\n"
-    "Answer:"
-)
+from src.config import get_embeddings
+from src.pipeline.base import RAGPipeline
+
+_PROMPT = "Answer using only the context below.\nContext: {context}\nQuestion: {query}\nAnswer:"
 
 
 class SmallChunkPipeline(RAGPipeline):

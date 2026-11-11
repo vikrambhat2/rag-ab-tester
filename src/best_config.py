@@ -14,6 +14,7 @@ Usage:
     # Persist a winner after an experiment
     save({"chunk_size": 256, "chunk_overlap": 25})
 """
+
 from __future__ import annotations
 
 import json
@@ -26,16 +27,16 @@ DEFAULTS: dict = {
     "chunk_size": 512,
     "chunk_overlap": 50,
     "embedding_model": "ibm/slate-125m-english-rtrvr-v2",
-    "retrieval_strategy": "semantic",   # "semantic" | "hybrid"
-    "prompt_template": "open",          # "open" | "strict"
+    "retrieval_strategy": "semantic",  # "semantic" | "hybrid"
+    "prompt_template": "open",  # "open" | "strict"
 }
 
 # Keys each experiment is responsible for saving
 EXPERIMENT_KEYS: dict[str, list[str]] = {
-    "Chunk Size":         ["chunk_size", "chunk_overlap"],
-    "Embedding Model":    ["embedding_model"],
+    "Chunk Size": ["chunk_size", "chunk_overlap"],
+    "Embedding Model": ["embedding_model"],
     "Retrieval Strategy": ["retrieval_strategy"],
-    "Prompt Template":    ["prompt_template"],
+    "Prompt Template": ["prompt_template"],
 }
 
 
@@ -58,9 +59,7 @@ def save(updates: dict) -> None:
     current.update(updates)
     _FILE.parent.mkdir(parents=True, exist_ok=True)
     # Write only keys that are in DEFAULTS to avoid cruft accumulation
-    _FILE.write_text(
-        json.dumps({k: current[k] for k in DEFAULTS if k in current}, indent=2)
-    )
+    _FILE.write_text(json.dumps({k: current[k] for k in DEFAULTS if k in current}, indent=2))
 
 
 def summary() -> str:

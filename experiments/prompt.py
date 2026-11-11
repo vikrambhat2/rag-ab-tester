@@ -6,9 +6,10 @@ Hypothesis: strict grounding instructions reduce hallucination (faithfulness)
 Chunk size and embedding model are read from results/best_config.json.
 Falls back to defaults if upstream experiments have not been run yet.
 """
-from src.pipeline.base import RAGPipeline
-from src.config import get_embeddings
+
 from src.best_config import get as best
+from src.config import get_embeddings
+from src.pipeline.base import RAGPipeline
 
 _OPEN_PROMPT = """\
 Answer the question as helpfully as possible.
@@ -45,7 +46,7 @@ Answer:"""
 
 
 class ConversationalPromptPipeline(RAGPipeline):
-    """Step-by-step conversational assistant with NO_ANSWER abstention."""
+    """Control: open, helpfulness-oriented prompt."""
 
     def get_chunk_size(self):
         return (best("chunk_size"), best("chunk_overlap"))
@@ -54,7 +55,7 @@ class ConversationalPromptPipeline(RAGPipeline):
         return get_embeddings(best("embedding_model"))
 
     def get_prompt(self, query, context):
-        return _CONTROL_PROMPT.format(context=context, query=query)
+        return _OPEN_PROMPT.format(context=context, query=query)
 
 
 class ExpertQAPromptPipeline(RAGPipeline):
@@ -72,12 +73,12 @@ class ExpertQAPromptPipeline(RAGPipeline):
 
 # ── Experiment registration ─────────────────────────────────────────────── #
 EXPERIMENT_NAME = "Prompt Template"
-CONTROL = OpenPromptPipeline
-CHALLENGER = StrictPromptPipeline
+CONTROL = ConversationalPromptPipeline
+CHALLENGER = ExpertQAPromptPipeline
 CONTROL_NAME = "Open Prompt"
 CHALLENGER_NAME = "Strict Grounding"
 
 CHAMPION_CONFIG = {
-    "Open Prompt":      {"prompt_template": "open"},
+    "Open Prompt": {"prompt_template": "open"},
     "Strict Grounding": {"prompt_template": "strict"},
 }

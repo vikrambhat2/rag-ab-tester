@@ -1,6 +1,6 @@
 from __future__ import annotations
+
 from pydantic import BaseModel, Field
-from typing import List
 
 
 class QueryScore(BaseModel):
@@ -12,16 +12,13 @@ class QueryScore(BaseModel):
 
     def overall(self) -> float:
         return (
-            self.faithfulness
-            + self.answer_relevance
-            + self.context_precision
-            + self.context_recall
+            self.faithfulness + self.answer_relevance + self.context_precision + self.context_recall
         ) / 4
 
 
 class VariantResult(BaseModel):
     variant_name: str
-    scores: List[QueryScore]
+    scores: list[QueryScore]
 
     def avg(self, metric: str) -> float:
         return sum(getattr(s, metric) for s in self.scores) / len(self.scores)
@@ -36,9 +33,9 @@ class MetricComparison(BaseModel):
     cohens_d: float
     ci_low: float
     ci_high: float
-    significant: bool   # p < 0.05
-    meaningful: bool    # |d| >= 0.2
-    winner: str         # "control" | "challenger" | "no difference"
+    significant: bool  # p < 0.05
+    meaningful: bool  # |d| >= 0.2
+    winner: str  # "control" | "challenger" | "no difference"
 
 
 class ExperimentResult(BaseModel):
@@ -47,9 +44,9 @@ class ExperimentResult(BaseModel):
     challenger_name: str
     control: VariantResult
     challenger: VariantResult
-    comparisons: List[MetricComparison]
+    comparisons: list[MetricComparison]
     overall_winner: str
 
 
 class ABReport(BaseModel):
-    experiments: List[ExperimentResult] = Field(default_factory=list)
+    experiments: list[ExperimentResult] = Field(default_factory=list)

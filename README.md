@@ -6,26 +6,31 @@ Powered by [IBM WatsonX AI](https://www.ibm.com/watsonx) (LLM + embeddings) and 
 
 ## Quick Start
 
+Requires Python 3.10+ and [uv](https://docs.astral.sh/uv/).
+
 ```bash
-# 1. Install Python dependencies
-pip install -r requirements.txt
+# 1. Install dependencies (creates .venv from uv.lock)
+uv sync
 
 # 2. Configure credentials
 cp .env.example .env
 # Edit .env — add WATSONX_* and OPENSEARCH_* values
 
 # 3. Generate the test set (uses data/docs/ by default)
-python ingest.py
+uv run python ingest.py
 
 # 4. Run experiments in recommended order (each builds on the previous winner)
-python run_experiment.py --experiment experiments/chunking.py --save-json
-python run_experiment.py --experiment experiments/embedding.py --save-json
-python run_experiment.py --experiment experiments/retrieval.py --save-json
-python run_experiment.py --experiment experiments/prompt.py --save-json
+uv run python run_experiment.py --experiment experiments/chunking.py --save-json
+uv run python run_experiment.py --experiment experiments/embedding.py --save-json
+uv run python run_experiment.py --experiment experiments/retrieval.py --save-json
+uv run python run_experiment.py --experiment experiments/prompt.py --save-json
 
 # Or run all at once
-python run_all.py --save-json
+uv run python run_all.py --save-json
 ```
+
+Configuration is validated up front: a missing or malformed variable produces one
+error listing everything that needs fixing, before any network call is made.
 
 ## Environment Variables
 
@@ -45,15 +50,62 @@ WATSONX_EMBED_MODEL_ID=ibm/slate-125m-english-rtrvr-v2
 OPENSEARCH_URL=https://your-opensearch-host:9200
 OPENSEARCH_USERNAME=your-username
 OPENSEARCH_PASSWORD=your-password
-OPENSEARCH_VERIFY_SSL=true
+OPENSEARCH_VERIFY_SSL=true     # false only for local dev; logs a warning
+
+# Tuning (optional)
+OPENSEARCH_TIMEOUT=60          # seconds
+LOG_LEVEL=INFO
 ```
 
 > **Note:** The OpenSearch vector store uses the `lucene` k-NN engine with `cosinesimil` space type — compatible with all standard OpenSearch deployments including IBM watsonx.data.
+
+## LLM Providers & Separate Judge
+
+By default both the RAG generator and the judge use WatsonX (`WATSONX_LLM_MODEL_ID`).
+Two optional features build on that:
+
+**1. Any OpenAI-compatible chat endpoint** (watsonx.ai Model Gateway, vLLM, OpenAI, …):
+
+```bash
+LLM_PROVIDER=openai
+LLM_BASE_URL=https://your-endpoint/v1
+LLM_API_KEY=...
+LLM_MODEL=model-name
+```
+
+This replaces the chat LLM only. **Embeddings always use WatsonX**, so `WATSONX_*` is still
+required to run experiments (`ingest.py` only needs the chat LLM).
+
+**2. A judge that differs from the system under test.** When judge and generator are the same
+model, LLM-as-judge scores can be biased toward that model's own style. Set any of
+`JUDGE_LLM_PROVIDER`, `JUDGE_LLM_BASE_URL`, `JUDGE_LLM_API_KEY`, `JUDGE_LLM_MODEL`; unset values
+fall back to the generator's. For example, only the model differs:
+
+```bash
+JUDGE_LLM_MODEL=ibm/granite-3-3-8b-instruct
+```
+
+If the judge switches *provider*, it inherits nothing from the generator (so one provider's key is
+never sent to another's endpoint). Each run prints both models and warns if they are identical.
+
+> **Is Granite available on the watsonx.ai Model Gateway?** Not confirmed from public docs — the
+> gateway needs an administrator to register models. Check against your account (replace the host
+> with your region; the key is your IBM Cloud API key):
+>
+> ```bash
+> TOKEN=$(curl -s -X POST https://iam.cloud.ibm.com/identity/token \
+>   -d "grant_type=urn:ibm:params:oauth:grant-type:apikey&apikey=$WATSONX_API_KEY" | jq -r .access_token)
+> curl -s -H "Authorization: Bearer $TOKEN" https://us-south.ml.cloud.ibm.com/ml/gateway/v1/models
+> ```
+>
+> The exact model-list path and auth are from third-party docs, so treat this as a starting point
+> and confirm against IBM's API reference.
 
 ## Project Structure
 
 ```
 rag-ab-tester/
+├── tests/                   Unit tests (no network) + opt-in integration tests
 ├── experiments/
 │   ├── chunking.py          Experiment 1: chunk size (256 vs 512)
 │   ├── retrieval.py         Experiment 2: semantic vs hybrid BM25
@@ -68,7 +120,9 @@ rag-ab-tester/
 │   └── *.json               Saved experiment results
 ├── src/
 │   ├── best_config.py       Champion config store (get / save / summary)
-│   ├── config.py            WatsonX AI + OpenSearch client helpers
+│   ├── config.py            Validated settings + WatsonX/OpenSearch client factories
+│   ├── retry.py             Exponential-backoff wrapper for network calls
+│   ├── logging_config.py    CLI logging setup
 │   ├── models/schemas.py    Pydantic data models
 │   ├── pipeline/base.py     RAGPipeline base class
 │   ├── evaluator/
@@ -115,8 +169,8 @@ You can also read or write it manually:
 ```python
 from src.best_config import get, save
 
-chunk_size = get("chunk_size")       # e.g. 256
-embedding  = get("embedding_model")  # e.g. "intfloat/multilingual-e5-large"
+chunk_size = get("chunk_size")  # e.g. 256
+embedding = get("embedding_model")  # e.g. "intfloat/multilingual-e5-large"
 
 # Override a value manually
 save({"embedding_model": "ibm/slate-125m-english-rtrvr-v2"})
@@ -133,20 +187,33 @@ from src.best_config import get as best
 
 _PROMPT = "Answer using only the context.\nContext: {context}\nQuestion: {query}\nAnswer:"
 
+
 class MyControlPipeline(RAGPipeline):
-    def get_chunk_size(self):   return (best("chunk_size"), best("chunk_overlap"))
-    def get_embeddings(self):   return get_embeddings(best("embedding_model"))
-    def get_prompt(self, query, context): return _PROMPT.format(context=context, query=query)
+    def get_chunk_size(self):
+        return (best("chunk_size"), best("chunk_overlap"))
+
+    def get_embeddings(self):
+        return get_embeddings(best("embedding_model"))
+
+    def get_prompt(self, query, context):
+        return _PROMPT.format(context=context, query=query)
+
 
 class MyChallengerPipeline(RAGPipeline):
-    def get_chunk_size(self):   return (best("chunk_size"), best("chunk_overlap"))
-    def get_embeddings(self):   return get_embeddings("intfloat/multilingual-e5-large")
-    def get_prompt(self, query, context): return _PROMPT.format(context=context, query=query)
+    def get_chunk_size(self):
+        return (best("chunk_size"), best("chunk_overlap"))
+
+    def get_embeddings(self):
+        return get_embeddings("intfloat/multilingual-e5-large")
+
+    def get_prompt(self, query, context):
+        return _PROMPT.format(context=context, query=query)
+
 
 EXPERIMENT_NAME = "My Experiment"
-CONTROL         = MyControlPipeline
-CHALLENGER      = MyChallengerPipeline
-CONTROL_NAME    = "baseline"
+CONTROL = MyControlPipeline
+CHALLENGER = MyChallengerPipeline
+CONTROL_NAME = "baseline"
 CHALLENGER_NAME = "e5-large"
 
 # Optional: auto-save the winner to best_config.json
@@ -159,7 +226,7 @@ CHAMPION_CONFIG = {
 Run it:
 
 ```bash
-python run_experiment.py --experiment experiments/custom/my_experiment.py --save-json
+uv run python run_experiment.py --experiment experiments/custom/my_experiment.py --save-json
 ```
 
 Each experiment gets two isolated OpenSearch indices (`ctrl_<name>` and `chal_<name>`) so variants never share state.
@@ -188,19 +255,64 @@ A change is worth acting on only if both `p < 0.05` **and** `|d| ≥ 0.2`.
 
 ```bash
 # Generate test set
-python ingest.py [--docs-path data/docs] [--num-questions 20] [--output data/test_set.json]
+uv run python ingest.py [--docs-path data/docs] [--num-questions 20] [--output data/test_set.json] [--seed N] [-v]
 
 # Single experiment
-python run_experiment.py --experiment <path> [--test-set data/test_set.json] [--save-json]
+uv run python run_experiment.py --experiment <path> [--test-set data/test_set.json] [--save-json] [--keep-indices] [-v]
 
 # All experiments
-python run_all.py [--include chunking prompt] [--exclude embedding] [--save-json]
+uv run python run_all.py [--include chunking prompt] [--exclude embedding] [--save-json] [--keep-indices] [-v]
 ```
 
-## Environment Variables (optional overrides)
+Exit codes: `0` success, `1` experiment/config failure (so CI and schedulers can detect it).
+
+## Reliability Notes
+
+- **Retries:** WatsonX and OpenSearch calls retry with exponential backoff on transient errors; bad input and configuration errors fail immediately.
+- **Failed queries:** a query that still fails is scored 0.0 and logged. If more than 50% of a variant's queries fail, the experiment aborts rather than report skewed statistics.
+- **Judge fallback:** if the LLM judge returns no parseable score it falls back to a neutral 0.5 and logs a warning.
+- **Index hygiene:** each run deletes any stale index first and removes its indices afterwards (pass `--keep-indices` to inspect them).
+- **Logging:** `-v` for debug output, or set `LOG_LEVEL`.
+
+## Docker
+
+The image runs the CLI only (the Streamlit app is a sample and is not containerised).
 
 ```bash
-OLLAMA_LLM_MODEL=llama3.2          # default LLM
-OLLAMA_EMBED_MODEL=nomic-embed-text # default embedding model
-OLLAMA_BASE_URL=http://localhost:11434
+docker build -t rag-ab-tester .
+docker run --rm --env-file .env -v "$PWD/results:/app/results" rag-ab-tester \
+    python run_experiment.py --experiment experiments/chunking.py --save-json
+
+# Local OpenSearch for development (WatsonX credentials still come from .env)
+docker compose up -d opensearch
+docker compose run --rm app python ingest.py
+docker compose run --rm app python run_all.py --save-json
 ```
+
+Credentials are passed at runtime and never baked into the image. The compose file uses a
+self-signed demo node with `OPENSEARCH_VERIFY_SSL=false` — do not do that against a real cluster.
+
+## Sample Dashboard (optional)
+
+```bash
+uv sync --extra ui
+uv run streamlit run streamlit_app/app.py
+```
+
+This is a local demo with no authentication; do not expose it publicly.
+
+## Development
+
+```bash
+uv sync --group dev
+uv run pre-commit install
+uv run ruff check . && uv run ruff format --check . && uv run mypy .
+uv run pytest                          # unit tests, no network needed
+RUN_INTEGRATION=1 uv run pytest -m integration   # live WatsonX/OpenSearch smoke tests
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). CI runs lint, type checks, tests (Python 3.10–3.12), a secret scan and a Docker build.
+
+## License
+
+[MIT](LICENSE)
