@@ -39,7 +39,7 @@ st.divider()
 experiments = discover_experiments()
 
 if not experiments:
-    st.error("No experiment files found in `experiments/`. Check your project layout.")
+    st.error("No experiments found. Is the package installed (`uv sync --group ui`)?")
     st.stop()
 
 exp_options = {
@@ -48,7 +48,7 @@ exp_options = {
 selected_label = st.selectbox(
     "Experiment",
     options=list(exp_options.keys()),
-    help="Experiments in `experiments/` and `experiments/custom/`",
+    help="Built-in experiments and examples/",
 )
 selected_path = exp_options[selected_label]
 
@@ -100,8 +100,8 @@ if run_clicked:
     st.session_state.pop("run_result", None)
 
     cmd = [
-        "python", "run_experiment.py",
-        "--experiment", str(selected_path.relative_to(PROJECT_ROOT)),
+        "python", "-m", "rag_ab_tester", "run",
+        str(selected_path.relative_to(PROJECT_ROOT)),
         "--test-set", test_set_path,
     ]
     if save_json:

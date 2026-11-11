@@ -3,15 +3,12 @@ utils/results_loader.py — Load ExperimentResult / ABReport from JSON
 """
 from __future__ import annotations
 import json
-import sys
 from pathlib import Path
 
-# Ensure the project root is on the path so we can import src.*
+# The sample app lives in the repo and uses the installed package (uv sync --group ui).
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.models.schemas import ABReport, ExperimentResult  # noqa: E402
+from rag_ab_tester.models.schemas import ABReport, ExperimentResult  # noqa: E402
 
 RESULTS_DIR = PROJECT_ROOT / "results"
 
@@ -58,12 +55,13 @@ def load_all_results() -> list[ExperimentResult]:
     return results
 
 
-def discover_experiments(experiments_dir: Path | None = None) -> list[Path]:
-    """Return all .py experiment files (root + custom/), sorted."""
-    root = experiments_dir or (PROJECT_ROOT / "experiments")
-    files = sorted(p for p in root.glob("*.py") if p.name != "__init__.py")
-    custom = sorted(p for p in (root / "custom").glob("*.py") if p.name != "__init__.py")
-    return files + custom
+def discover_experiments(examples_dir: Path | None = None) -> list[Path]:
+    """Built-in experiments shipped with the package, plus examples/*.py, sorted."""
+    from rag_ab_tester.runner import builtin_experiments
+
+    examples = examples_dir or (PROJECT_ROOT / "examples")
+    custom = sorted(p for p in examples.glob("*.py") if not p.name.startswith("_"))
+    return list(builtin_experiments().values()) + custom
 
 
 def load_test_set(path: Path | None = None) -> list[dict]:

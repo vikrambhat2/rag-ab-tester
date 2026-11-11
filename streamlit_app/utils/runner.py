@@ -23,7 +23,7 @@ def stream_subprocess(
     Run a command and stream its output into a Streamlit code placeholder.
 
     Args:
-        cmd: Command list, e.g. ["python", "run_experiment.py", "--experiment", "..."]
+        cmd: Command list, e.g. ["python", "-m", "rag_ab_tester", "run", "chunking"]
         log_placeholder: A st.empty() object to update with cumulative log text.
         cwd: Working directory. Defaults to PROJECT_ROOT.
 

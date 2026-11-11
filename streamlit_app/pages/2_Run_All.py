@@ -19,14 +19,14 @@ from utils.runner import stream_subprocess
 
 st.set_page_config(page_title="Run All Experiments", page_icon="⚡", layout="wide")
 st.title("⚡ Run All Experiments")
-st.markdown("Run every experiment in `experiments/` in sequence and see a combined summary.")
+st.markdown("Run every built-in experiment (and `examples/`) in sequence and see a combined summary.")
 st.divider()
 
 # ── Experiment list ───────────────────────────────────────────────────────── #
 experiments = discover_experiments()
 
 if not experiments:
-    st.error("No experiment files found in `experiments/`.")
+    st.error("No experiments found.")
     st.stop()
 
 # Load metadata for display
@@ -93,8 +93,8 @@ if run_clicked:
 
         log_placeholder = st.empty()
         cmd = [
-            "python", "run_experiment.py",
-            "--experiment", rel_path,
+            "python", "-m", "rag_ab_tester", "run",
+            rel_path,
             "--test-set", test_set_path,
         ]
         if save_json:

@@ -73,7 +73,7 @@ else:
 st.divider()
 st.subheader("Generate / Regenerate Test Set")
 st.markdown(
-    "This calls `ingest.py` to load your docs, sample random chunks, "
+    "This runs `rag-ab ingest` to load your docs, sample random chunks, "
     "and ask the local Ollama LLM to generate one Q&A pair per chunk."
 )
 
@@ -125,7 +125,7 @@ if submitted:
     start = time.time()
 
     cmd = [
-        "python", "ingest.py",
+        "python", "-m", "rag_ab_tester", "ingest",
         "--docs-path", docs_path_input,
         "--num-questions", str(int(num_questions)),
         "--output", output_path,

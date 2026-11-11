@@ -109,7 +109,7 @@ if experiments:
         hide_index=True,
     )
 else:
-    st.info("No experiment files found in `experiments/`.")
+    st.info("No experiments found.")
 
 # ── Latest results ───────────────────────────────────────────────────────── #
 if result_files:
@@ -153,7 +153,7 @@ steps = [
     ("1. Generate Test Set", "Navigate to **Test Set** to generate Q&A pairs from your docs.", "📋"),
     ("2. Run an Experiment", "Go to **Run Experiment**, pick a variant pair, and click Run.", "🚀"),
     ("3. View Results", "Open **Results** for charts, statistical tables, and per-query analysis.", "📊"),
-    ("4. Add Your Own", "Drop a `.py` file in `experiments/custom/` — 10 lines of code.", "🧩"),
+    ("4. Add Your Own", "Write a `.py` experiment file (see `examples/`) — 10 lines of code.", "🧩"),
 ]
 for col, (title, body, icon) in zip(cols, steps):
     with col:

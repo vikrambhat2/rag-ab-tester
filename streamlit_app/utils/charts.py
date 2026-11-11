@@ -13,8 +13,8 @@ PROJECT_ROOT = Path(__file__).parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.models.schemas import ExperimentResult  # noqa: E402
-from src.evaluator.stats import effect_size_label  # noqa: E402
+from rag_ab_tester.models.schemas import ExperimentResult  # noqa: E402
+from rag_ab_tester.evaluator.stats import effect_size_label  # noqa: E402
 
 METRICS = ["faithfulness", "answer_relevance", "context_precision", "context_recall"]
 METRIC_LABELS = {
