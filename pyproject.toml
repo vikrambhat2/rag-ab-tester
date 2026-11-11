@@ -1,34 +1,57 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
 [project]
 name = "rag-ab-tester"
 version = "0.1.0"
-description = "A/B testing framework for RAG pipelines with statistical comparison, powered by IBM WatsonX AI and OpenSearch."
+description = "Statistically sound A/B testing for RAG pipelines: LLM-as-judge metrics, paired t-tests, effect sizes."
 readme = "README.md"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.10"
+keywords = ["rag", "ab-testing", "llm", "evaluation", "retrieval", "vector-store"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
+# Light core: statistics, schemas, reporting, judge and CLI. Providers are optional extras.
 dependencies = [
-    "langchain>=0.3,<0.4",
-    "langchain-community>=0.3,<0.4",
-    "langchain-ibm>=0.3,<0.4",
-    "langchain-openai>=0.3,<0.4",
-    "langchain-text-splitters>=0.3,<0.4",
-    "ibm-watsonx-ai>=1.1,<2",
-    "opensearch-py>=2.4,<3",
-    "pydantic>=2.0,<3",
-    "scipy>=1.12,<2",
     "numpy>=1.26,<3",
-    "rank-bm25>=0.2.2,<0.3",
+    "scipy>=1.12,<2",
+    "pydantic>=2.0,<3",
     "rich>=13.7,<15",
     "python-dotenv>=1.0,<2",
     "tenacity>=8.2,<10",
 ]
 
 [project.optional-dependencies]
-# Sample dashboard only — not required for the CLI.
-ui = [
-    "streamlit>=1.35,<2",
-    "plotly>=5.20,<7",
-    "pandas>=2.0,<3",
+# Built-in OpenAI-compatible chat + embeddings (OpenAI, Ollama, vLLM, LiteLLM, gateways, ...).
+openai = [
+    "langchain-openai>=0.3,<0.4",
 ]
+# Markdown loading/chunking and BM25 hybrid retrieval (needed by the built-in experiments).
+docs = [
+    "langchain-text-splitters>=0.3,<0.4",
+    "rank-bm25>=0.2.2,<0.3",
+]
+all = ["rag-ab-tester[openai,docs]"]
+
+[project.urls]
+Homepage = "https://github.com/vikrambhat2/rag-ab-tester"
+Repository = "https://github.com/vikrambhat2/rag-ab-tester"
+Issues = "https://github.com/vikrambhat2/rag-ab-tester/issues"
+Changelog = "https://github.com/vikrambhat2/rag-ab-tester/blob/main/CHANGELOG.md"
+
+[project.scripts]
+rag-ab = "rag_ab_tester.cli:main"
 
 [dependency-groups]
 dev = [
@@ -38,10 +61,18 @@ dev = [
     "mypy>=1.10",
     "pre-commit>=3.7",
 ]
+# Sample Streamlit dashboard (lives in the repo; NOT part of the published package).
+ui = [
+    "streamlit>=1.35,<2",
+    "plotly>=5.20,<7",
+    "pandas>=2.0,<3",
+]
 
-[tool.uv]
-# Scripts live at the repo root (run_experiment.py etc.); this is an application, not a library.
-package = false
+[tool.hatch.build.targets.wheel]
+packages = ["src/rag_ab_tester"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/rag_ab_tester", "tests", "examples", "README.md", "LICENSE", "CHANGELOG.md", "pyproject.toml"]
 
 # ── Tooling ──────────────────────────────────────────────────────────────── #
 
@@ -49,11 +80,12 @@ package = false
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-ra --strict-markers"
-markers = ["integration: needs live WatsonX/OpenSearch credentials (skipped by default)"]
+markers = ["integration: needs a live OpenAI-compatible endpoint (skipped by default)"]
 
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+src = ["src", "tests"]
 extend-exclude = ["streamlit_app"]
 
 [tool.ruff.lint]
@@ -65,4 +97,5 @@ python_version = "3.10"
 ignore_missing_imports = true
 check_untyped_defs = true
 warn_unused_ignores = true
-exclude = ["streamlit_app/", "tests/"]
+mypy_path = "src"
+exclude = ["streamlit_app/", "tests/", "examples/"]
