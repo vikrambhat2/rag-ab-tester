@@ -13,6 +13,8 @@
 ## Guidelines
 
 - Unit tests must not touch the network or read real credentials — use the fakes in `tests/conftest.py`.
-- Wrap new network calls with `src.retry.with_retry`, and log with `logging` (not `print`) inside `src/`.
+- Wrap new network calls with `rag_ab_tester.retry.with_retry`, and log with `logging` (not `print`) inside `src/`.
 - Never commit `.env`, certificates, or results containing private data.
-- New experiments live in `experiments/custom/`; see the README for the required module attributes.
+- Built-in experiments live in `src/rag_ab_tester/experiments/`; user-style examples in `examples/`. See the README for the required module attributes.
+- Library code must not read `.env`, configure logging or call `sys.exit` — only `cli.py` does that.
+- Optional dependencies (OpenAI client, LangChain text splitters, BM25) must be imported lazily via `config.import_optional`, so the core install keeps working without them.
