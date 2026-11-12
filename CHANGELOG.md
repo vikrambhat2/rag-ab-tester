@@ -14,12 +14,12 @@
 - Results location is configurable (`--results-dir` / `RAG_AB_RESULTS_DIR`); `docs_path` is an explicit parameter.
 - Release workflow using PyPI Trusted Publishing (tag `v*`; manual run publishes to TestPyPI); CI builds and smoke-tests the wheel.
 
-### Provider-neutral defaults (WatsonX and OpenSearch removed)
+### Provider-neutral defaults
 - The built-in provider is now any OpenAI-compatible endpoint for both chat and embeddings
-  (`LLM_*`, `EMBED_*`, `JUDGE_LLM_*`); the default vector store is in-memory. All WatsonX and
-  OpenSearch code, settings, extras and the compose OpenSearch service are gone.
-- Extras are now `openai` and `docs` (`all` = both); `langchain`, `langchain-community`,
-  `opensearch-py`, `langchain-ibm` and `ibm-watsonx-ai` are no longer dependencies.
+  (`LLM_*`, `EMBED_*`, `JUDGE_LLM_*`); the default vector store is in-memory. The earlier
+  provider-specific integrations, settings, extras and compose service are removed.
+- Extras are now `openai` and `docs` (`all` = both); the heavier LangChain and
+  provider-specific packages are no longer dependencies.
 - The embedding experiment compares `EMBED_MODEL` with `EMBED_MODEL_CHALLENGER`.
 - Removed the `--keep-indices` CLI flag (nothing persists by default); `keep_indices=` remains in the SDK.
 - Markdown loading and BM25 no longer use LangChain loaders (own loader + `rank-bm25`).
@@ -44,7 +44,7 @@
 - Unit tests, ruff + mypy, pre-commit, GitHub Actions CI, Dependabot.
 - Dockerfile, `docker-compose.yml`, LICENSE, CONTRIBUTING.
 - Separate judge via `JUDGE_LLM_*`, with a warning when judge and generator are the same model.
-- `WatsonxJudge` / `OllamaJudge` renamed `LLMJudge`.
+- Provider-specific judge classes replaced by a single `LLMJudge`.
 
 ### Fixed
 - `experiments/prompt.py` referenced undefined names and crashed with `NameError`.
