@@ -62,6 +62,14 @@ result = run_experiment("chunking", test_set_path="data/test_set.json", docs_pat
 print(result.overall_winner)
 ```
 
+### Try it locally (no API keys)
+
+[`examples/notebooks/quickstart_local.ipynb`](examples/notebooks/quickstart_local.ipynb) A/B tests chunk
+size, embedding model, prompt and retrieval method using [Ollama](https://ollama.com) as the LLM and
+Hugging Face `sentence-transformers` for embeddings. The experiment files it runs live in
+[`examples/experiments/`](examples/experiments/) and also work from the CLI, e.g.
+`rag-ab run examples/experiments/exp_retrieval.py`. Prerequisites are listed at the top of the notebook.
+
 The library never reads `.env`, configures logging or exits the process; the `rag-ab` CLI does that.
 Library users set environment variables themselves (see below). Public API: `RAGPipeline`, `LLMJudge`,
 `compare_metric`, `run_experiment`, the result schemas, `Settings`/`get_settings`, the provider
