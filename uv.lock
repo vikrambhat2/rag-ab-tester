@@ -3021,7 +3021,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0,<2" },
     { name = "rag-ab-tester", extras = ["openai", "docs"], marker = "extra == 'all'" },
     { name = "rank-bm25", marker = "extra == 'docs'", specifier = ">=0.2.2,<0.3" },
-    { name = "rich", specifier = ">=13.7,<15" },
+    { name = "rich", specifier = ">=13.7,<16" },
     { name = "scipy", specifier = ">=1.12,<2" },
     { name = "tenacity", specifier = ">=8.2,<10" },
 ]
@@ -3031,13 +3031,13 @@ provides-extras = ["openai", "docs", "all"]
 dev = [
     { name = "mypy", specifier = ">=1.10" },
     { name = "pre-commit", specifier = ">=3.7" },
-    { name = "pytest", specifier = ">=8,<9" },
+    { name = "pytest", specifier = ">=8,<10" },
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.6" },
 ]
 ui = [
     { name = "pandas", specifier = ">=2.0,<3" },
-    { name = "plotly", specifier = ">=5.20,<7" },
+    { name = "plotly", specifier = ">=5.20,<8" },
     { name = "streamlit", specifier = ">=1.35,<2" },
 ]
 

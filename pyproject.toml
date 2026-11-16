@@ -27,7 +27,7 @@ dependencies = [
     "numpy>=1.26,<3",
     "scipy>=1.12,<2",
     "pydantic>=2.0,<3",
-    "rich>=13.7,<15",
+    "rich>=13.7,<16",
     "python-dotenv>=1.0,<2",
     "tenacity>=8.2,<10",
 ]
@@ -55,7 +55,7 @@ rag-ab = "rag_ab_tester.cli:main"
 
 [dependency-groups]
 dev = [
-    "pytest>=8,<9",
+    "pytest>=8,<10",
     "pytest-cov>=5",
     "ruff>=0.6",
     "mypy>=1.10",
@@ -64,7 +64,7 @@ dev = [
 # Sample Streamlit dashboard (lives in the repo; NOT part of the published package).
 ui = [
     "streamlit>=1.35,<2",
-    "plotly>=5.20,<7",
+    "plotly>=5.20,<8",
     "pandas>=2.0,<3",
 ]
 
