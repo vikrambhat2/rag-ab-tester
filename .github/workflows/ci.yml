@@ -74,7 +74,7 @@ jobs:
           cd "$(mktemp -d)"
           /tmp/clean/bin/python -I -c "import rag_ab_tester; print(rag_ab_tester.__version__)"
           /tmp/clean/bin/rag-ab --help
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
