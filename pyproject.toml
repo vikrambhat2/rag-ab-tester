@@ -35,11 +35,11 @@ dependencies = [
 [project.optional-dependencies]
 # Built-in OpenAI-compatible chat + embeddings (OpenAI, Ollama, vLLM, LiteLLM, gateways, ...).
 openai = [
-    "langchain-openai>=0.3,<0.4",
+    "langchain-openai>=0.3,<1.8",
 ]
 # Markdown loading/chunking and BM25 hybrid retrieval (needed by the built-in experiments).
 docs = [
-    "langchain-text-splitters>=0.3,<0.4",
+    "langchain-text-splitters>=0.3,<1.2",
     "rank-bm25>=0.2.2,<0.3",
 ]
 all = ["rag-ab-tester[openai,docs]"]
